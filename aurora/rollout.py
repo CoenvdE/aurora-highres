@@ -15,12 +15,12 @@ def rollout(model: Aurora, batch: Batch, steps: int) -> Generator[Batch, None, N
     """Perform a roll-out to make long-term predictions.
 
     Args:
-        model (:class:`aurora.model.aurora.Aurora`): The model to roll out.
-        batch (:class:`aurora.batch.Batch`): The batch to start the roll-out from.
+        model (:class:`aurora.Aurora`): The model to roll out.
+        batch (:class:`aurora.Batch`): The batch to start the roll-out from.
         steps (int): The number of roll-out steps.
 
     Yields:
-        :class:`aurora.batch.Batch`: The prediction after every step.
+        :class:`aurora.Batch`: The prediction after every step.
     """
     # We will need to concatenate data, so ensure that everything is already of the right form.
     batch = model.batch_transform_hook(batch)  # This might modify the available variables.

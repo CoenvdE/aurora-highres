@@ -146,6 +146,7 @@ class WindowAttention(nn.Module):
             mask (torch.Tensor, optional): Attention mask of floating points in the range
                 `[-inf, 0)` with shape of `(nW, ws, ws)`, where `nW` is the number of windows,
                 and `ws` is the window size (i.e. total tokens inside the window).
+            rollout_step (int, optional): Roll-out step. Defaults to `0`.
 
         Returns:
             torch.Tensor: Output of shape `(nW*B, N, C)`.
@@ -198,8 +199,8 @@ def window_partition_3d(x: torch.Tensor, ws: tuple[int, int, int]) -> torch.Tens
     """Partition into windows.
 
     Args:
-        x: (torch.Tensor): Input tensor of shape `(B, C, H, W, D)`.
-        ws: (tuple[int, int, int]): A 3D window size `(Wc, Wh, Ww)`.
+        x (torch.Tensor): Input tensor of shape `(B, C, H, W, D)`.
+        ws (tuple[int, int, int]): A 3D window size `(Wc, Wh, Ww)`.
 
     Returns:
         torch.Tensor: Partitioning of shape `(num_windows*B, Wc, Wh, Ww, D)`.
@@ -318,7 +319,8 @@ def compute_3d_shifted_window_mask(
         H (int): Height of the image.
         W (int): Width of the image.
         ws (tuple[int, int, int]): Window sizes of the form `(Wc, Wh, Ww)`.
-        ss (tuple[int, int, int]): Shift sizes of the form `(Sc, Sh, Sw)`
+        ss (tuple[int, int, int]): Shift sizes of the form `(Sc, Sh, Sw)`.
+        device (torch.device): Device of the mask.
         dtype (torch.dtype, optional): Data type of the mask. Defaults to `torch.bfloat16`.
         warped (bool): If `True`,assume that the left and right sides of the image are connected.
             Defaults to `True`.
@@ -768,7 +770,8 @@ class Swin3DTransformerBackbone(nn.Module):
         lora_mode: LoRAMode = "single",
         use_lora: bool = False,
     ) -> None:
-        """
+        """Initialise.
+
         Args:
             embed_dim (int): Patch embedding dimension. Default to `96`.
             encoder_depths (tuple[int, ...]): Number of blocks in each encoder layer. Defaults to

@@ -24,6 +24,7 @@ def unpatchify(x: torch.Tensor, V: int, H: int, W: int, P: int) -> torch.Tensor:
         V (int): Number of variables.
         H (int): Number of latitudes.
         W (int): Number of longitudes.
+        P (int): Patch size.
 
     Returns:
         torch.Tensor: Unpatchified representation of shape `(B, V, C, H, W)`.

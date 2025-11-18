@@ -199,7 +199,7 @@ class Perceiver3DEncoder(nn.Module):
         """Peform encoding.
 
         Args:
-            batch (:class:`.Batch`): Batch to encode.
+            batch (:class:`aurora.Batch`): Batch to encode.
             lead_time (timedelta): Lead time.
 
         Returns:

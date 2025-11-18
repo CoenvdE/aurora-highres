@@ -124,7 +124,7 @@ class Aurora(torch.nn.Module):
             drop_rate (float, optional): Drop-out rate.
             drop_path (float, optional): Drop-path rate.
             enc_depth (int, optional): Number of Perceiver blocks in the encoder.
-            dec_depth (int, optioanl): Number of Perceiver blocks in the decoder.
+            dec_depth (int, optional): Number of Perceiver blocks in the decoder.
             dec_mlp_ratio (float, optional): Hidden dim. to embedding dim. ratio for MLPs in the
                 decoder. The embedding dimensionality here is different, which is why this is a
                 separate parameter.
@@ -266,7 +266,7 @@ class Aurora(torch.nn.Module):
         """Forward pass.
 
         Args:
-            batch (:class:`Batch`): Batch to run the model on.
+            batch (:class:`aurora.Batch`): Batch to run the model on.
 
         Returns:
             :class:`Batch`: Prediction for the batch.
@@ -472,7 +472,7 @@ class Aurora(torch.nn.Module):
 
         If a checkpoint was trained with a larger `max_history_size` than the current model,
         this function will assert fail to prevent loading the checkpoint. This is to
-        prevent loading a checkpoint which will likely cause the checkpoint to degrade is
+        prevent loading a checkpoint which will likely cause the checkpoint to degrade its
         performance.
 
         This implementation copies weights from the checkpoint to the model and fills zeros
