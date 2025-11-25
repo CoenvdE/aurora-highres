@@ -222,7 +222,6 @@ class Perceiver3DEncoder(nn.Module):
         else:
             assert x_static is not None, "Static variables not given."
             x_static = x_static.expand((B, T, -1, -1, -1))
-
             if self.dynamic_vars:
                 ones = torch.ones((1, T, 1, H, W), device=x_static.device, dtype=x_static.dtype)
                 time = batch.metadata.time

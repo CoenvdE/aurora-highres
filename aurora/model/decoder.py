@@ -1,7 +1,7 @@
 """Copyright (c) Microsoft Corporation. Licensed under the MIT license."""
 
 from datetime import timedelta
-from typing import Optional
+from typing import Callable, Optional
 
 import torch
 from einops import rearrange
@@ -135,7 +135,27 @@ class Perceiver3DDecoder(nn.Module):
 
         self.atmos_levels_embed = nn.Linear(embed_dim, embed_dim)
 
+        self._latent_capture_callback: Optional[Callable[[dict[str, torch.Tensor]], None]] = None
+
         self.apply(init_weights)
+
+    def register_latent_callback(
+        self, callback: Callable[[dict[str, torch.Tensor]], None]
+    ) -> None:
+        """Register a callback to receive latent tensors."""
+        self._latent_capture_callback = callback
+
+    def clear_latent_callback(self) -> None:
+        """Remove any registered latent callback."""
+        self._latent_capture_callback = None
+
+    def _emit_latents(self, **latents: torch.Tensor) -> None:
+        """Notify the callback about captured tensors, if any."""
+        callback = self._latent_capture_callback
+        if callback is None:
+            return
+        callback(latents)
+
 
     def deaggregate_levels(
         self,
@@ -210,6 +230,11 @@ class Perceiver3DDecoder(nn.Module):
             W=patch_res[2],
         )
 
+        self._emit_latents(
+            surface_latents=x[..., :1, :],
+            aggregated_atmospheric_latents=x[..., 1:, :],
+        )
+
         # Decode surface vars. Run the head for every surface-level variable.
         x_surf = torch.stack([self.surf_heads[name](x[..., :1, :]) for name in surf_vars], dim=-1)
         x_surf = x_surf.reshape(*x_surf.shape[:3], -1)  # (B, L, 1, V_S*p*p)
@@ -223,7 +248,7 @@ class Perceiver3DDecoder(nn.Module):
         levels_embed = self.atmos_levels_embed(atmos_levels_encode)  # (C_A, D)
 
         # De-aggregate the hidden levels into the physical levels.
-        levels_embed = levels_embed.expand(B, x.size(1), -1, -1)
+        levels_embed = levels_embed.expand(B, x.size(1), -1, -1) # [B, L, C_A, D]
         x_atmos = self.deaggregate_levels(
             levels_embed,
             x[..., 1:, :],
@@ -239,6 +264,8 @@ class Perceiver3DDecoder(nn.Module):
             # `x_atmos_alternate` won't be used, but we define the variable anyway for type
             # stability.
             x_atmos_alternate = x_atmos
+
+        self._emit_latents(deaggregated_atmospheric_latents=x_atmos)
 
         # Decode the atmospheric vars. Per variable, first determine whether the main or alternate
         # Perceiver pressure level decoder should be used.

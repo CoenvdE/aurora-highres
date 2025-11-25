@@ -34,3 +34,7 @@ checkpoints/
 mlflow_tmp/
 aurora_mlflow_pyfunc/
 mlruns/
+
+# Examples
+examples/latents/   
+examples/downloads/

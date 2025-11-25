@@ -271,14 +271,55 @@ class Aurora(torch.nn.Module):
         Returns:
             :class:`Batch`: Prediction for the batch.
         """
-        batch = self.batch_transform_hook(batch)
+        batch = self.batch_transform_hook(batch)  # TODO: why is this here?
+
+        #------------------------------------------------
+        def _print_tensor(name: str, value: object) -> None:
+            if isinstance(value, torch.Tensor):
+                print(f"{name}: {value.shape}")
+            elif isinstance(value, dict):
+                for key, item in value.items():
+                    _print_tensor(f"{name}.{key}", item)
+            elif dataclasses.is_dataclass(value):
+                for key, item in dataclasses.asdict(value).items():
+                    _print_tensor(f"{name}.{key}", item)
+            elif isinstance(value, (list, tuple)):
+                for idx, item in enumerate(value):
+                    _print_tensor(f"{name}[{idx}]", item)
+            else:
+                print(f"{name}: {type(value)}")
+
+        batch_dict = dataclasses.asdict(batch)
+        # for key, value in batch_dict.items():
+        #     _print_tensor(key, value)
+        #------------------------------------------------
 
         # Get the first parameter. We'll derive the data type and device from this parameter.
         p = next(self.parameters())
         batch = batch.type(p.dtype)
         batch = batch.normalise(surf_stats=self.surf_stats)
-        batch = batch.crop(patch_size=self.patch_size)
-        batch = batch.to(p.device)
+        batch = batch.crop(patch_size=self.patch_size) #TODO: why is this here?
+
+        #------------------------------------------------
+        def _print_tensor(name: str, value: object) -> None:
+            if isinstance(value, torch.Tensor):
+                print(f"{name}: {value.shape}")
+            elif isinstance(value, dict):
+                for key, item in value.items():
+                    _print_tensor(f"{name}.{key}", item)
+            elif dataclasses.is_dataclass(value):
+                for key, item in dataclasses.asdict(value).items():
+                    _print_tensor(f"{name}.{key}", item)
+            elif isinstance(value, (list, tuple)):
+                for idx, item in enumerate(value):
+                    _print_tensor(f"{name}[{idx}]", item)
+            else:
+                print(f"{name}: {type(value)}")
+
+        batch_dict = dataclasses.asdict(batch)
+        # for key, value in batch_dict.items():
+        #     _print_tensor(key, value)
+        #------------------------------------------------
 
         H, W = batch.spatial_shape
         patch_res = (
@@ -286,6 +327,7 @@ class Aurora(torch.nn.Module):
             H // self.encoder.patch_size,
             W // self.encoder.patch_size,
         )
+        # print(f"patch_res: pressure levels, height, width = {patch_res}")
 
         # Insert batch and history dimension for static variables.
         B, T = next(iter(batch.surf_vars.values())).shape[:2]
@@ -296,9 +338,10 @@ class Aurora(torch.nn.Module):
 
         # Apply some transformations before feeding `batch` to the encoder. We'll later want to
         # refer to the original batch too, so rename the variable.
-        transformed_batch = batch
+        transformed_batch = batch #TODO: why is this here?
 
         # Clamp positive variables.
+        #TODO: why is this here?
         if self.positive_surf_vars:
             transformed_batch = dataclasses.replace(
                 transformed_batch,
@@ -316,7 +359,7 @@ class Aurora(torch.nn.Module):
                 },
             )
 
-        transformed_batch = self._pre_encoder_hook(transformed_batch)
+        transformed_batch = self._pre_encoder_hook(transformed_batch) #TODO: why is this here?
 
         # The encoder is always just run.
         x = self.encoder(
@@ -331,7 +374,7 @@ class Aurora(torch.nn.Module):
                 device_type = "xpu"
             else:
                 device_type = "cpu"
-            context = torch.autocast(device_type=device_type, dtype=torch.bfloat16)
+            context = torch.autocast(device_type=device_type, dtype=torch.bfloat16) #TODO: what does context do
         else:
             context = contextlib.nullcontext()
         with context:
@@ -341,13 +384,13 @@ class Aurora(torch.nn.Module):
                 patch_res=patch_res,
                 rollout_step=batch.metadata.rollout_step,
             )
-
         pred = self.decoder(
             x,
             batch,
             lead_time=self.timestep,
             patch_res=patch_res,
         )
+        # print(f"pred: {pred.shape}")
 
         # Remove batch and history dimension from static variables.
         pred = dataclasses.replace(
@@ -362,9 +405,10 @@ class Aurora(torch.nn.Module):
             atmos_vars={k: v[:, None] for k, v in pred.atmos_vars.items()},
         )
 
-        pred = self._post_decoder_hook(batch, pred)
+        pred = self._post_decoder_hook(batch, pred) #TODO: why is this here?
 
         # Clamp positive variables.
+        #TODO: why is this here? the positive values
         clamp_at_rollout_step = (
             pred.metadata.rollout_step >= 1
             if self.clamp_at_first_step

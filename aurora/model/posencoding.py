@@ -11,7 +11,7 @@ from timm.layers import to_2tuple
 
 from aurora.model.fourier import FourierExpansion
 
-__all__ = ["pos_scale_enc"]
+__all__ = ["pos_scale_enc", "expand_patch_bounds"]
 
 
 def patch_root_area(
@@ -45,8 +45,6 @@ def patch_root_area(
     assert (lat_max > lat_min).all(), f"lat_max - lat_min: {torch.min(lat_max - lat_min)}."
     assert (lon_max > lon_min).all(), f"lon_max - lon_min: {torch.min(lon_max - lon_min)}."
     assert (abs(lat_max) <= 90.0).all() and (abs(lat_min) <= 90.0).all()
-    assert (lon_max <= 360.0).all() and (lon_min <= 360.0).all()
-    assert (lon_max >= 0.0).all() and (lon_min >= 0.0).all()
     area = (
         6371**2
         * torch.pi
@@ -98,6 +96,7 @@ def pos_scale_enc_grid(
     grid_lat_min = -F.max_pool2d(-grid[:, 0], patch_dims)
     grid_lon_max = F.max_pool2d(grid[:, 1], patch_dims)
     grid_lon_min = -F.max_pool2d(-grid[:, 1], patch_dims)
+
     root_area = patch_root_area(grid_lat_min, grid_lon_min, grid_lat_max, grid_lon_max)
 
     # Use half of dimensions for the latitudes of the midpoints of the patches and the other
