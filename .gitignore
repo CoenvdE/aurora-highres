@@ -38,3 +38,5 @@ mlruns/
 # Examples
 examples/latents/   
 examples/downloads/
+examples/hres_vis
+
