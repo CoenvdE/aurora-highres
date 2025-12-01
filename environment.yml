@@ -1,0 +1,39 @@
+name: aurora
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - scipy
+  - pandas
+  - xarray
+  - netcdf4
+  - h5netcdf
+  - zarr
+  - dask
+  # - pytorch::pytorch
+  - einops
+  - timm
+  - huggingface_hub
+  - pydantic
+  - azure-storage-blob
+  - requests
+  - cdsapi
+  - pytz
+  - matplotlib
+  - cartopy
+  - shapely
+  - pyproj
+  - cfgrib
+  - eccodes
+  - pillow
+  - mlflow
+  - pytest
+  - pytest-cov
+  - ruff=0.4.1
+  - mypy
+  - pre-commit
+  - pip:
+      - -e .[dev]
