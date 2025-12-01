@@ -157,6 +157,11 @@ HRES analysis,
 HRES-WAM analysis,
 CAMS reanalysis, and CAMS analysis.
 
+To demonstrate how to reproduce a larger slice of the HRES analysis archive we
+added `examples/download_hres_year.py`, which loops over a user-provided date
+range (defaults to 2021) and mirrors the download layout expected by
+`examples/load_hres_batch_example.py`.
+
 ### Evaluations
 All versions of Aurora were extensively evaluated by evaluating predictions on data not seen during training.
 These evaluations not only compare measures of accuracy, such as the root mean square error and anomaly correlation coefficient,

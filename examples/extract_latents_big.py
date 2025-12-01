@@ -151,9 +151,9 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--start_year", type=int, default=2020, help="Start year")
-    parser.add_argument("--end_year", type=int, default=2020, help="End year")
-    parser.add_argument("--save_dir", type=Path, default=Path("examples/latents"), help="Directory to save latents")
+    parser.add_argument("--start_year", type=int, default=2021, help="Start year")
+    parser.add_argument("--end_year", type=int, default=2021, help="End year")
+    parser.add_argument("--save_dir", type=Path, default=Path("examples/latents"), help="Directory to save latents") #TODO: change to whatever is good
     parser.add_argument("--zarr_path", type=str, default=DEFAULT_ZARR_PATH, help="Path to ERA5 Zarr")
     parser.add_argument("--static_path", type=str, required=True, help="Path to static data NetCDF")
     
