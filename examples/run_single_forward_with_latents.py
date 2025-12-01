@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Run a single Aurora forward pass from an ERA5 Zarr chunk.
-
-This script downloads the static fields (if needed), loads one ERA5 batch
-for a requested day from the Zarr archive, executes a forward pass with a
-pretrained Aurora checkpoint, and stores the input batch and prediction in
-separate folders for easy inspection.
-"""
+"""Run one Aurora forward pass and persist the captured latents."""
 
 from __future__ import annotations
 
@@ -15,8 +9,14 @@ from pathlib import Path
 
 import torch
 
+from examples.extract_latents_big import register_latent_hooks
 from examples.load_era_batch_snellius import load_batch_from_zarr
-from examples.utils import ensure_static_dataset, load_model
+from examples.utils import (
+    compute_patch_grid,
+    ensure_static_dataset,
+    format_latents_filename,
+    load_model,
+)
 
 DEFAULT_ZARR_PATH = \
     "/projects/2/managed_datasets/ERA5/era5-gcp-zarr/ar/1959-2022-wb13-6h-0p25deg-chunk-1.zarr-v2"
@@ -24,7 +24,8 @@ DEFAULT_ZARR_PATH = \
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Single-batch Aurora inference from ERA5 Zarr")
+        description="Single-batch Aurora inference with latent capture",
+    )
     parser.add_argument(
         "--zarr-path",
         type=str,
@@ -40,8 +41,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--work-dir",
         type=Path,
-        default=Path("examples/run_single_forward"),
-        help="Root directory for downloads and saved tensors",
+        default=Path("examples/run_single_forward_latents"),
+        help="Root directory for downloads, tensors, and latents",
     )
     parser.add_argument(
         "--cpu",
@@ -62,8 +63,9 @@ def main() -> None:
     work_dir = args.work_dir.expanduser()
     inputs_dir = work_dir / "inputs"
     outputs_dir = work_dir / "outputs"
+    latents_dir = work_dir / "latents"
     cache_dir = work_dir / "cache"
-    for directory in (inputs_dir, outputs_dir, cache_dir):
+    for directory in (inputs_dir, outputs_dir, latents_dir, cache_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
     static_path = ensure_static_dataset(cache_dir)
@@ -82,9 +84,17 @@ def main() -> None:
     batch_device = batch.to(device)
     model = load_model(device)
 
-    print("Running forward pass...")
-    with torch.no_grad():
-        prediction = model(batch_device).to("cpu")
+    captures: dict[str, torch.Tensor] = {}
+    handles, decoder_cleanup = register_latent_hooks(model, captures)
+
+    print("Running forward pass and capturing latents...")
+    try:
+        with torch.no_grad():
+            prediction = model(batch_device).to("cpu")
+    finally:
+        for handle in handles:
+            handle.remove()
+        decoder_cleanup()
 
     batch_cpu = batch.to("cpu")
 
@@ -97,7 +107,25 @@ def main() -> None:
     print(f"Saving prediction to {output_file}")
     torch.save({"prediction": prediction}, output_file)
 
-    print("Done. Inspect the saved tensors with torch.load() or Batch.to_netcdf().")
+    timestamp = prediction.metadata.time[0]
+    latents_file = latents_dir / format_latents_filename(timestamp)
+    patch_grid = compute_patch_grid(
+        batch.metadata.lat,
+        batch.metadata.lon,
+        model.patch_size,
+    )
+
+    print(f"Saving latents snapshot to {latents_file}")
+    torch.save(
+        {
+            "captures": captures,
+            "patch_grid": patch_grid,
+            "prediction": prediction,
+        },
+        latents_file,
+    )
+
+    print("Done. Latents and tensors are ready for inspection.")
 
 
 if __name__ == "__main__":

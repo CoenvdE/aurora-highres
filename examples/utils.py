@@ -1,3 +1,4 @@
+import pickle
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -6,6 +7,8 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
+import xarray as xr
+from huggingface_hub import hf_hub_download
 
 import aurora as aurora_module
 from aurora.batch import Batch
@@ -14,6 +17,45 @@ from torch.serialization import safe_globals
 
 
 LATENTS_DIR = Path("examples/latents")
+DEFAULT_STATIC_REPO = "microsoft/aurora"
+DEFAULT_STATIC_FILENAME = "aurora-0.25-static.pickle"
+
+
+def ensure_static_dataset(
+    cache_dir: Path,
+    repo_id: str = DEFAULT_STATIC_REPO,
+    filename: str = DEFAULT_STATIC_FILENAME,
+) -> Path:
+    """Download Aurora static fields and materialize them as ``static.nc``."""
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    static_path = cache_dir / "static.nc"
+    if static_path.exists():
+        return static_path
+
+    pickle_path = hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        cache_dir=str(cache_dir),
+    )
+
+    with open(pickle_path, "rb") as handle:
+        static_vars = pickle.load(handle)
+
+    latitudes = np.linspace(90, -90, 721)
+    longitudes = np.linspace(0, 360, 1440, endpoint=False)
+    dataset = xr.Dataset(
+        data_vars={
+            name: (("latitude", "longitude"), values)
+            for name, values in static_vars.items()
+        },
+        coords={
+            "latitude": ("latitude", latitudes),
+            "longitude": ("longitude", longitudes),
+        },
+    )
+    dataset.to_netcdf(static_path)
+    return static_path
 
 
 @dataclass
