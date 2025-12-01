@@ -12,6 +12,12 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 from pathlib import Path
+import sys
+
+# Add project root to sys.path
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
 
 import torch
 
@@ -102,3 +108,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# usage:
+# python examples/run_single_forward_from_zarr.py --date 2020-01-01
