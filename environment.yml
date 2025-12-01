@@ -1,4 +1,4 @@
-name: aurora
+name: aurora-highres
 channels:
   - conda-forge
   - pytorch
