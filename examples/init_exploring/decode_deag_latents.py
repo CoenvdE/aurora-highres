@@ -16,7 +16,7 @@ import aurora as aurora_module
 from aurora.batch import Batch
 from aurora.model.decoder import Perceiver3DDecoder
 from aurora.model.util import unpatchify
-from examples.utils import find_latest_latents_file, load_latents_info_and_grid
+from examples.init_exploring.utils import find_latest_latents_file, load_latents_info_and_grid
 
 SURF_PHYS_PATH = Path("examples/downloads/era5/2023-01-01-surface-level.nc")
 ATMOS_PHYS_PATH = Path("examples/downloads/era5/2023-01-01-atmospheric.nc")

@@ -14,6 +14,9 @@ import aurora as aurora_module
 from aurora.batch import Batch
 from aurora.model.posencoding import lat_lon_meshgrid, patch_root_area
 from torch.serialization import safe_globals
+import types
+from typing import Callable
+import warnings
 
 
 LATENTS_DIR = Path("examples/latents")
@@ -218,3 +221,53 @@ def find_latest_latents_file(
             f"No latents files matching {pattern!r} inside {directory}.")
 
     return candidates[0]
+
+def register_latent_hooks(model: aurora_module.Aurora, captures: dict[str, torch.Tensor]):
+    """Attach hooks so we capture the required latent snapshots."""
+    handles = []
+
+    def make_forward_hook(name: str):
+        def hook(_, __, output):
+            captures[name] = output.detach().cpu()
+
+        return hook
+
+    handles.append(model.encoder.register_forward_hook(
+        make_forward_hook("after_encoder")))
+    handles.append(model.backbone.register_forward_hook(
+        make_forward_hook("after_processor")))
+
+    def decoder_callback(latents: dict[str, torch.Tensor]):
+        for key, tensor in latents.items():
+            captures[f"decoder.{key}"] = tensor.detach().cpu()
+
+    decoder_cleanup = register_decoder_latent_callback(
+        model.decoder, decoder_callback)
+    return handles, decoder_cleanup
+
+
+def register_decoder_latent_callback(
+    decoder: torch.nn.Module, callback: Callable[[dict[str, torch.Tensor]], None]
+) -> Callable[[], None]:
+    """Install `callback` so every emitted decoder latent is captured."""
+    if hasattr(decoder, "register_latent_callback"):
+        decoder.register_latent_callback(callback)
+        return decoder.clear_latent_callback
+
+    original_emit = getattr(decoder, "_emit_latents", None)
+    if original_emit is None:
+        warnings.warn(
+            "Decoder does not expose `_emit_latents`, so decoder latents will not be captured."
+        )
+        return lambda: None
+
+    def patched_emit(self, **latents: torch.Tensor):
+        callback(latents)
+        return original_emit(**latents)
+
+    decoder._emit_latents = types.MethodType(patched_emit, decoder)
+
+    def cleanup() -> None:
+        decoder._emit_latents = original_emit
+
+    return cleanup

@@ -1,4 +1,4 @@
-"""Download a full year of ECMWF HRES analysis data for Aurora examples.
+"""Download multiple years of ECMWF HRES analysis data for Aurora examples.
 
 This script extends `download_hres_sample.py` by looping over all days in a date
 range (defaults to the full year 2021). Files are written under
@@ -6,7 +6,7 @@ range (defaults to the full year 2021). Files are written under
 `load_hres_batch_example.py` or custom loaders.
 
 Usage:
-    python examples/download_hres_year.py --start 2021-01-01 --end 2021-12-31 \
+    python examples/download_hres_year.py --start 2018-01-01 --end 2021-12-31 \
         --out examples/downloads/hres
 """
 from __future__ import annotations
@@ -22,20 +22,34 @@ from huggingface_hub import hf_hub_download
 # Each variable has a numeric identifier in the RDA archive.
 VAR_NUMS: Dict[str, str] = {
     "2t": "167",  # 2m temperature
-    "10u": "165",  # 10m u-component of wind
-    "10v": "166",  # 10m v-component of wind
+    # "10u": "165",  # 10m u-component of wind
+    # "10v": "166",  # 10m v-component of wind
     "msl": "151",  # Mean sea level pressure
-    "t": "130",  # Temperature
-    "u": "131",  # u-component of wind (atmospheric)
-    "v": "132",  # v-component of wind (atmospheric)
+    # "t": "130",  # Temperature
+    # "u": "131",  # u-component of wind (atmospheric)
+    # "v": "132",  # v-component of wind (atmospheric)
     "q": "133",  # Specific humidity (atmospheric)
-    "z": "129",  # Geopotential
-    "slt": "043",  # Soil type
-    "lsm": "172",  # Land-sea mask
+    # "z": "129",  # Geopotential
+    # "slt": "043",  # Soil type
+    # "lsm": "172",  # Land-sea mask
 }
 
-SURF_VARS = ["2t", "10u", "10v", "msl", "z", "slt", "lsm"]
-ATMOS_VARS = ["z", "t", "u", "v", "q"]
+SURF_VARS = [
+    "2t",  # 2m temperature (t2m)
+    "msl",  # Mean sea level pressure
+    # "10u",
+    # "10v",
+    # "z",
+    # "slt",
+    # "lsm",
+]
+ATMOS_VARS = [
+    "q",  # Specific humidity
+    # "z",
+    # "t",
+    # "u",
+    # "v",
+]
 ATMOS_HOURS = [0, 6, 12, 18]
 
 
@@ -104,13 +118,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start",
         type=datetime.fromisoformat,
-        default=datetime(2021, 1, 1),
+        default=datetime(2018, 1, 1),
         help="First day to download (inclusive). Format YYYY-MM-DD",
     )
     parser.add_argument(
         "--end",
         type=datetime.fromisoformat,
-        default=datetime(2021, 12, 31),
+        default=datetime(2020, 12, 31),
         help="Last day to download (inclusive). Format YYYY-MM-DD",
     )
     parser.add_argument(

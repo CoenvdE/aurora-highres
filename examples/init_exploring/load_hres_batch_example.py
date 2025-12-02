@@ -6,8 +6,11 @@ import xarray as xr
 from pathlib import Path
 from datetime import datetime
 
+
 def load_hres_batch_example(device: torch.device, download_path: str = "examples/downloads/hres") -> Batch:
     download_path = Path(download_path)
+    # Force cfgrib to rebuild indexes in-memory.
+    backend_kwargs = {"indexpath": ""}
     # Load these pressure levels.
     levels = (1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50)
     date = datetime(2023, 1, 1)
@@ -26,24 +29,30 @@ def load_hres_batch_example(device: torch.device, download_path: str = "examples
         download_path / date.strftime(f"atmos_q_%Y-%m-%d_06.grib"),
         download_path / date.strftime(f"atmos_z_%Y-%m-%d_00.grib"),
         download_path / date.strftime(f"atmos_z_%Y-%m-%d_06.grib"),
-    }       
-
+    }
 
     def load_surf(v: str, v_in_file: str) -> torch.Tensor:
         """Load the downloaded surface-level or static variable `v` for hours 00 and 06."""
-        ds = xr.open_dataset(download_path / date.strftime(f"surf_{v}_%Y-%m-%d.grib"), engine="cfgrib")
+        ds = xr.open_dataset(
+            download_path / date.strftime(f"surf_{v}_%Y-%m-%d.grib"),
+            engine="cfgrib",
+            backend_kwargs=backend_kwargs,
+        )
         data = ds[v_in_file].values[:2]  # Use hours 00 and 06.
         data = data[None]  # Insert a batch dimension.
         return torch.from_numpy(data)
 
-
     def load_atmos(v: str) -> torch.Tensor:
         """Load the downloaded atmospheric variable `v` for hours 00 and 06."""
         ds_00 = xr.open_dataset(
-            download_path / date.strftime(f"atmos_{v}_%Y-%m-%d_00.grib"), engine="cfgrib"
+            download_path / date.strftime(f"atmos_{v}_%Y-%m-%d_00.grib"),
+            engine="cfgrib",
+            backend_kwargs=backend_kwargs,
         )
         ds_06 = xr.open_dataset(
-            download_path / date.strftime(f"atmos_{v}_%Y-%m-%d_06.grib"), engine="cfgrib"
+            download_path / date.strftime(f"atmos_{v}_%Y-%m-%d_06.grib"),
+            engine="cfgrib",
+            backend_kwargs=backend_kwargs,
         )
         # Select the right pressure levels.
         ds_00 = ds_00[v].sel(isobaricInhPa=list(levels))
@@ -52,9 +61,9 @@ def load_hres_batch_example(device: torch.device, download_path: str = "examples
         data = data[None]  # Insert a batch dimension.
         return torch.from_numpy(data)
 
-
     # Extract the latitude and longitude from an arbitrary downloaded file.
-    ds = xr.open_dataset(next(iter(downloads)), engine="cfgrib")
+    ds = xr.open_dataset(next(iter(downloads)),
+                         engine="cfgrib", backend_kwargs=backend_kwargs)
 
     batch = Batch(
         surf_vars={
@@ -82,6 +91,7 @@ def load_hres_batch_example(device: torch.device, download_path: str = "examples
     )
     batch = batch.to(device)
     return batch
+
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

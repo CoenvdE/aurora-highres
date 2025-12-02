@@ -10,7 +10,7 @@ from matplotlib.collections import PolyCollection
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
-from examples.utils import find_latest_latents_file, load_latents_info_and_grid
+from examples.init_exploring.utils import find_latest_latents_file, load_latents_info_and_grid
 
 
 def _normalize_lon(lon: np.ndarray) -> np.ndarray:

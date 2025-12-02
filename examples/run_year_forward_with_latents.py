@@ -7,15 +7,15 @@ import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import h5py
 import torch
 import xarray as xr
 
-from examples.extract_latents_big import register_latent_hooks
+from examples.extract_latents import register_latent_hooks
 from examples.load_era_batch_snellius import load_batch_from_zarr
-from examples.utils import (
+from examples.init_exploring.utils import (
     compute_patch_grid,
     ensure_static_dataset,
-    format_latents_filename,
     load_model,
 )
 
@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start-year",
         type=int,
-        default=2020,
+        default=2018,
         help="First year (inclusive) to process",
     )
     parser.add_argument(
@@ -63,7 +63,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-existing",
         action="store_true",
-        help="Skip samples whose latents file already exists",
+        help="Skip samples whose latents dataset already exists",
+    )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=2,
+        help="Stop after processing at most this many time steps",
     )
     return parser.parse_args()
 
@@ -75,6 +81,51 @@ def iterate_days(year: int):
     while current <= end:
         yield current
         current += delta
+
+
+def latent_exists(latents_h5: Path, label: str) -> bool:
+    if not latents_h5.exists():
+        return False
+
+    with h5py.File(latents_h5, "r") as handle:
+        latents_group = handle.get("pressure_latents")
+        if latents_group is None:
+            return False
+        return label in latents_group
+
+
+def write_patch_grid_once(latents_h5: Path, patch_grid: dict[str, torch.Tensor | int | tuple[int, int]]) -> None:
+    with h5py.File(latents_h5, "a") as handle:
+        if "patch_grid" in handle:
+            return
+
+        patch_group = handle.create_group("patch_grid")
+        centres = patch_grid["centres"].detach().cpu().numpy()
+        bounds = patch_grid["bounds"].detach().cpu().numpy()
+        root_area = patch_grid["root_area"].detach().cpu().numpy()
+
+        patch_group.create_dataset("centres", data=centres)
+        patch_group.create_dataset("bounds", data=bounds)
+        patch_group.create_dataset("root_area", data=root_area)
+        patch_group.attrs["patch_shape"] = tuple(
+            int(x) for x in patch_grid["patch_shape"])
+        patch_group.attrs["patch_size"] = int(patch_grid["patch_size"])
+        patch_group.attrs["patch_count"] = int(patch_grid["patch_count"])
+
+
+def save_patch_grid_file(destination: Path, patch_grid: dict[str, torch.Tensor | int | tuple[int, int]]) -> None:
+    if destination.exists():
+        return
+
+    serialisable: dict[str, torch.Tensor | int | tuple[int, int]] = {}
+    for key, value in patch_grid.items():
+        if isinstance(value, torch.Tensor):
+            serialisable[key] = value.detach().cpu()
+        else:
+            serialisable[key] = value
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(serialisable, destination)
 
 
 def main() -> None:
@@ -93,6 +144,7 @@ def main() -> None:
     static_path = ensure_static_dataset(cache_dir)
 
     print("Opening ERA5 Zarr dataset once...")
+    # TODO: change with workers etc?
     dataset = xr.open_zarr(args.zarr_path, consolidated=True)
 
     print("Opening static dataset once...")
@@ -105,10 +157,14 @@ def main() -> None:
     model = load_model(device)
     model.eval()
 
+    patch_grid: dict[str, torch.Tensor | int | tuple[int, int]] | None = None
+    patch_grid_cache_path = latents_dir / "patch_grid.pt"
+
     captures: dict[str, torch.Tensor] = {}
     handles, decoder_cleanup = register_latent_hooks(model, captures)
 
     try:
+        processed_samples = 0
         for year in range(args.start_year, args.end_year + 1):
             print(f"Processing year {year}...")
             year_inputs_dir = inputs_dir / str(year)
@@ -117,12 +173,13 @@ def main() -> None:
             for directory in (year_inputs_dir, year_outputs_dir, year_latents_dir):
                 directory.mkdir(parents=True, exist_ok=True)
 
+            latents_h5 = year_latents_dir / "pressure_surface_latents.h5"
+
             for day in iterate_days(year):
                 date_str = day.strftime("%Y-%m-%d")
                 expected_time = datetime(day.year, day.month, day.day, 12)
-                latents_file = year_latents_dir / \
-                    format_latents_filename(expected_time)
-                if args.skip_existing and latents_file.exists():
+                expected_label = expected_time.strftime("%Y-%m-%dT%H-%M-%S")
+                if args.skip_existing and latent_exists(latents_h5, expected_label):
                     print(f"  Skipping {date_str} (latents already exist)")
                     continue
 
@@ -139,43 +196,69 @@ def main() -> None:
                     print(f"    Failed to load batch: {exc}")
                     continue
 
+                if patch_grid is None:
+                    patch_grid = compute_patch_grid(
+                        batch.metadata.lat,
+                        batch.metadata.lon,
+                        model.patch_size,
+                    )
+                    save_patch_grid_file(patch_grid_cache_path, patch_grid)
+                write_patch_grid_once(latents_h5, patch_grid)
+
                 batch_device = batch.to(device)
                 with torch.no_grad():
                     prediction = model(batch_device).to("cpu")
 
                 actual_time = prediction.metadata.time[0]
-                latents_file = year_latents_dir / \
-                    format_latents_filename(actual_time)
+                deagg_latents = captures.get(
+                    "decoder.deaggregated_atmospheric_latents")
+                surface_latents = captures.get("decoder.surface_latents")
+                if deagg_latents is None or surface_latents is None:
+                    captures.clear()
+                    raise RuntimeError(
+                        "Decoder latent captures are missing; ensure hooks are registered."
+                    )
+                timestamp_label = actual_time.strftime("%Y-%m-%dT%H-%M-%S")
 
-                patch_grid = compute_patch_grid(
-                    batch.metadata.lat,
-                    batch.metadata.lon,
-                    model.patch_size,
+                print(
+                    "Writing decoder latents for",
+                    timestamp_label,
+                    "to",
+                    latents_h5,
                 )
 
-                input_file = year_inputs_dir / f"era5_batch_{date_str}.pt"
-                output_file = year_outputs_dir / \
-                    f"aurora_prediction_{date_str}.pt"
+                with h5py.File(latents_h5, "a") as handle:
+                    levels_group = handle.require_group("pressure_latents")
+                    if timestamp_label in levels_group:
+                        del levels_group[timestamp_label]
 
-                batch_cpu = batch.to("cpu")
+                    dataset = levels_group.create_dataset(
+                        timestamp_label,
+                        data=deagg_latents.numpy(),
+                        compression="gzip",
+                    )
+                    dataset.attrs["timestamp"] = actual_time.isoformat()
+                    dataset.attrs["shape"] = deagg_latents.shape
 
-                print(f"    Saving input batch to {input_file}")
-                torch.save({"batch": batch_cpu}, input_file)
-
-                print(f"    Saving prediction to {output_file}")
-                torch.save({"prediction": prediction}, output_file)
-
-                print(f"    Saving latents to {latents_file}")
-                torch.save(
-                    {
-                        "captures": dict(captures),
-                        "patch_grid": patch_grid,
-                        "prediction": prediction,
-                    },
-                    latents_file,
-                )
+                    surface_group = handle.require_group("surface_latents")
+                    if timestamp_label in surface_group:
+                        del surface_group[timestamp_label]
+                    surface_dataset = surface_group.create_dataset(
+                        timestamp_label,
+                        data=surface_latents.numpy(),
+                        compression="gzip",
+                    )
+                    surface_dataset.attrs["timestamp"] = actual_time.isoformat(
+                    )
+                    surface_dataset.attrs["shape"] = surface_latents.shape
 
                 captures.clear()
+                processed_samples += 1
+                if args.max_samples is not None and processed_samples >= args.max_samples:
+                    print("Reached max sample limit, stopping early.")
+                    break
+            if args.max_samples is not None and processed_samples >= args.max_samples:
+                break
     finally:
         for handle in handles:
             handle.remove()

@@ -22,7 +22,7 @@ if str(project_root) not in sys.path:
 import torch
 
 from examples.load_era_batch_snellius import load_batch_from_zarr
-from examples.utils import ensure_static_dataset, load_model
+from examples.init_exploring.utils import ensure_static_dataset, load_model
 
 DEFAULT_ZARR_PATH = \
     "/projects/2/managed_datasets/ERA5/era5-gcp-zarr/ar/1959-2022-wb13-6h-0p25deg-chunk-1.zarr-v2"

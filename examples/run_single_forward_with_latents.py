@@ -7,11 +7,12 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
+import h5py
 import torch
 
-from examples.extract_latents_big import register_latent_hooks
+from examples.extract_latents import register_latent_hooks
 from examples.load_era_batch_snellius import load_batch_from_zarr
-from examples.utils import (
+from examples.init_exploring.utils import (
     compute_patch_grid,
     ensure_static_dataset,
     format_latents_filename,
@@ -96,34 +97,52 @@ def main() -> None:
             handle.remove()
         decoder_cleanup()
 
-    batch_cpu = batch.to("cpu")
-
-    input_file = inputs_dir / f"era5_batch_{args.date}.pt"
-    output_file = outputs_dir / f"aurora_prediction_{args.date}.pt"
-
-    print(f"Saving input batch to {input_file}")
-    torch.save({"batch": batch_cpu}, input_file)
-
-    print(f"Saving prediction to {output_file}")
-    torch.save({"prediction": prediction}, output_file)
-
     timestamp = prediction.metadata.time[0]
-    latents_file = latents_dir / format_latents_filename(timestamp)
     patch_grid = compute_patch_grid(
         batch.metadata.lat,
         batch.metadata.lon,
         model.patch_size,
     )
 
-    print(f"Saving latents snapshot to {latents_file}")
-    torch.save(
-        {
-            "captures": captures,
-            "patch_grid": patch_grid,
-            "prediction": prediction,
+    patch_grid_file = latents_dir / "patch_grid.pt"
+    print(f"Saving patch grid to {patch_grid_file}")
+    torch.save({
+        "patch_grid": patch_grid,
+        "metadata": {
+            "lat_shape": tuple(batch.metadata.lat.shape),
+            "lon_shape": tuple(batch.metadata.lon.shape),
+            "patch_size": model.patch_size,
         },
-        latents_file,
+    }, patch_grid_file)
+
+    latents_key = "decoder.deaggregated_atmospheric_latents"
+    if latents_key not in captures:
+        raise KeyError(
+            f"Latents dictionary does not contain {latents_key!r}."
+            " Ensure the decoder hook is emitting deaggregated latents."
+        )
+
+    deagg_latents = captures[latents_key].detach().cpu()
+    timestamp_label = timestamp.strftime("%Y-%m-%dT%H-%M-%S")
+    latents_h5 = latents_dir / "deaggregated_latents.h5"
+    print(
+        "Writing deaggregated latents for",
+        timestamp_label,
+        "to",
+        latents_h5,
     )
+
+    with h5py.File(latents_h5, "a") as handle:
+        latents_group = handle.require_group("latents")
+        if timestamp_label in latents_group:
+            del latents_group[timestamp_label]
+        dataset = latents_group.create_dataset(
+            timestamp_label,
+            data=deagg_latents.numpy(),
+            compression="gzip",
+        )
+        dataset.attrs["timestamp"] = timestamp.isoformat()
+        dataset.attrs["shape"] = deagg_latents.shape
 
     print("Done. Latents and tensors are ready for inspection.")
 

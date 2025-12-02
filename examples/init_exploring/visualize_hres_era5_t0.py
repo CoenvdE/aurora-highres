@@ -4,8 +4,8 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import torch
 import numpy as np
-from examples.load_era_batch_example import load_era_batch_example
-from examples.load_hres_batch_example import load_hres_batch_example
+from examples.init_exploring.load_era_batch_example import load_era_batch_example
+from examples.init_exploring.load_hres_batch_example import load_hres_batch_example
 
 def plot_comparison(hres_batch, era_batch, variable="2t", time_idx=0):
     """Plots HRES and ERA5 data side-by-side for a given variable and time index."""
