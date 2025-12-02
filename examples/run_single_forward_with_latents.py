@@ -45,11 +45,6 @@ def parse_args() -> argparse.Namespace:
         default=Path("examples/run_single_forward_latents"),
         help="Root directory for downloads, tensors, and latents",
     )
-    parser.add_argument(
-        "--cpu",
-        action="store_true",
-        help="Force running on CPU even if CUDA is available",
-    )
     return parser.parse_args()
 
 
@@ -62,14 +57,10 @@ def main() -> None:
             f"--date must be YYYY-MM-DD, received {args.date!r}") from exc
 
     work_dir = args.work_dir.expanduser()
-    inputs_dir = work_dir / "inputs"
-    outputs_dir = work_dir / "outputs"
     latents_dir = work_dir / "latents"
-    cache_dir = work_dir / "cache"
-    for directory in (inputs_dir, outputs_dir, latents_dir, cache_dir):
-        directory.mkdir(parents=True, exist_ok=True)
+    latents_dir.mkdir(parents=True, exist_ok=True)
 
-    static_path = ensure_static_dataset(cache_dir)
+    static_path = ensure_static_dataset(work_dir)
 
     print("Loading batch from ERA5 Zarr...")
     batch = load_batch_from_zarr(
@@ -78,8 +69,7 @@ def main() -> None:
         date_str=args.date,
     )
 
-    device = torch.device(
-        "cpu" if args.cpu or not torch.cuda.is_available() else "cuda")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     batch_device = batch.to(device)

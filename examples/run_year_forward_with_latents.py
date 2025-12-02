@@ -56,11 +56,6 @@ def parse_args() -> argparse.Namespace:
         help="Root directory for downloads, tensors, and latents",
     )
     parser.add_argument(
-        "--cpu",
-        action="store_true",
-        help="Force running on CPU even if CUDA is available",
-    )
-    parser.add_argument(
         "--skip-existing",
         action="store_true",
         help="Skip samples whose latents dataset already exists",
@@ -134,24 +129,12 @@ def main() -> None:
         raise SystemExit("--start-year must be <= --end-year")
 
     work_dir = args.work_dir.expanduser()
-    inputs_dir = work_dir / "inputs"
-    outputs_dir = work_dir / "outputs"
     latents_dir = work_dir / "latents"
-    cache_dir = work_dir / "cache"
-    for directory in (inputs_dir, outputs_dir, latents_dir, cache_dir):
-        directory.mkdir(parents=True, exist_ok=True)
+    latents_dir.mkdir(parents=True, exist_ok=True)
 
-    static_path = ensure_static_dataset(cache_dir)
+    static_path = ensure_static_dataset(work_dir)
 
-    print("Opening ERA5 Zarr dataset once...")
-    # TODO: change with workers etc?
-    dataset = xr.open_zarr(args.zarr_path, consolidated=True)
-
-    print("Opening static dataset once...")
-    static_dataset = xr.open_dataset(static_path, engine="netcdf4")
-
-    device = torch.device(
-        "cpu" if args.cpu or not torch.cuda.is_available() else "cuda")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     model = load_model(device)
@@ -164,14 +147,21 @@ def main() -> None:
     handles, decoder_cleanup = register_latent_hooks(model, captures)
 
     try:
+        print("Opening ERA5 Zarr dataset once...")
+        dataset = xr.open_zarr(args.zarr_path, consolidated=True)
+
+        print("Opening static dataset once...")
+        try:
+            static_dataset = xr.open_dataset(static_path, engine="netcdf4")
+        except OSError:
+            print("Falling back to scipy engine for static dataset...")
+            static_dataset = xr.open_dataset(static_path, engine="scipy")
+
         processed_samples = 0
         for year in range(args.start_year, args.end_year + 1):
             print(f"Processing year {year}...")
-            year_inputs_dir = inputs_dir / str(year)
-            year_outputs_dir = outputs_dir / str(year)
             year_latents_dir = latents_dir / str(year)
-            for directory in (year_inputs_dir, year_outputs_dir, year_latents_dir):
-                directory.mkdir(parents=True, exist_ok=True)
+            year_latents_dir.mkdir(parents=True, exist_ok=True)
 
             latents_h5 = year_latents_dir / "pressure_surface_latents.h5"
 
@@ -232,13 +222,13 @@ def main() -> None:
                     if timestamp_label in levels_group:
                         del levels_group[timestamp_label]
 
-                    dataset = levels_group.create_dataset(
+                    pressure_dataset = levels_group.create_dataset(
                         timestamp_label,
                         data=deagg_latents.numpy(),
                         compression="gzip",
                     )
-                    dataset.attrs["timestamp"] = actual_time.isoformat()
-                    dataset.attrs["shape"] = deagg_latents.shape
+                    pressure_dataset.attrs["timestamp"] = actual_time.isoformat()
+                    pressure_dataset.attrs["shape"] = deagg_latents.shape
 
                     surface_group = handle.require_group("surface_latents")
                     if timestamp_label in surface_group:
@@ -263,10 +253,14 @@ def main() -> None:
         for handle in handles:
             handle.remove()
         decoder_cleanup()
-        if "static_dataset" in locals() and hasattr(static_dataset, "close"):
-            static_dataset.close()
-        if "dataset" in locals() and hasattr(dataset, "close"):
-            dataset.close()
+        if "static_dataset" in locals():
+            static_close = getattr(static_dataset, "close", None)
+            if callable(static_close):
+                static_close()
+        if "dataset" in locals():
+            dataset_close = getattr(dataset, "close", None)
+            if callable(dataset_close):
+                dataset_close()
 
     print("Finished processing requested years.")
 
