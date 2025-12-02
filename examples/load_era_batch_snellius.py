@@ -37,6 +37,19 @@ def load_batch_from_zarr(
     static = static_dataset or xr.open_dataset(static_path, engine="netcdf4")
     should_close_static = static_dataset is None
 
+    def _ensure_2d(data_array: xr.DataArray) -> torch.Tensor:
+        values = data_array.values
+        if values.ndim == 2:
+            return torch.from_numpy(values)
+        if values.ndim >= 3:
+            squeezed = values.squeeze()
+            if squeezed.ndim == 2:
+                return torch.from_numpy(squeezed)
+        raise ValueError(
+            f"Static variable {data_array.name!r} must reduce to 2 dimensions, "
+            f"but has shape {values.shape}."
+        )
+
     # 4. Construct Batch
     try:
         return Batch(
@@ -47,9 +60,9 @@ def load_batch_from_zarr(
                 "msl": torch.from_numpy(frame[VAR_MAP["msl"]].values[None, None]),
             },
             static_vars={
-                "z": torch.from_numpy(static["z"].values[0]),
-                "slt": torch.from_numpy(static["slt"].values[0]),
-                "lsm": torch.from_numpy(static["lsm"].values[0]),
+                "z": _ensure_2d(static["z"]),
+                "slt": _ensure_2d(static["slt"]),
+                "lsm": _ensure_2d(static["lsm"]),
             },
             atmos_vars={
                 "t": torch.from_numpy(frame[VAR_MAP["t"]].values[None, None]),
