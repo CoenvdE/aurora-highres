@@ -92,4 +92,4 @@ if not (download_path / "2023-01-01-atmospheric.nc").exists():
 print("Atmospheric variables downloaded!")
 
 # usage:
-# python examples/download_era_sample.py
+# python examples/init_exploring/download_era_sample.py

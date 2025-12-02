@@ -22,6 +22,10 @@ import warnings
 LATENTS_DIR = Path("examples/latents")
 DEFAULT_STATIC_REPO = "microsoft/aurora"
 DEFAULT_STATIC_FILENAME = "aurora-0.25-static.pickle"
+DEFAULT_STATIC_CANDIDATES: tuple[Path, ...] = (
+    Path("examples/downloads/era5/static.nc"),
+    Path("examples/downloads/hres/static.nc"),
+)
 
 
 def ensure_static_dataset(
@@ -32,9 +36,17 @@ def ensure_static_dataset(
     """Download Aurora static fields and materialize them as ``static.nc``."""
 
     cache_dir.mkdir(parents=True, exist_ok=True)
+
+    for candidate in DEFAULT_STATIC_CANDIDATES:
+        candidate = candidate.expanduser()
+        if _is_usable_static_file(candidate):
+            return candidate
+
     static_path = cache_dir / "static.nc"
-    if static_path.exists():
+    if _is_usable_static_file(static_path):
         return static_path
+    if static_path.exists():
+        static_path.unlink()
 
     pickle_path = hf_hub_download(
         repo_id=repo_id,
@@ -57,8 +69,24 @@ def ensure_static_dataset(
             "longitude": ("longitude", longitudes),
         },
     )
-    dataset.to_netcdf(static_path)
+    dataset.to_netcdf(static_path, engine="scipy")
     return static_path
+
+
+def _is_usable_static_file(path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        with xr.open_dataset(path, engine="netcdf4") as ds:  # type: ignore[misc]
+            ds.load()
+        return True
+    except Exception:
+        try:
+            with xr.open_dataset(path, engine="scipy") as ds:
+                ds.load()
+            return True
+        except Exception:
+            return False
 
 
 @dataclass

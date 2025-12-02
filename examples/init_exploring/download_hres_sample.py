@@ -68,4 +68,4 @@ print("Static variables downloaded!")
 
 # Download the surface-level variables.
 # usage:
-# python examples/download_hres_sample.py
+# python examples/init_exploring/download_hres_sample.py

@@ -263,11 +263,15 @@ def main() -> None:
         for handle in handles:
             handle.remove()
         decoder_cleanup()
-        static_dataset.close()
-        dataset.close()
+        if "static_dataset" in locals() and hasattr(static_dataset, "close"):
+            static_dataset.close()
+        if "dataset" in locals() and hasattr(dataset, "close"):
+            dataset.close()
 
     print("Finished processing requested years.")
 
 
 if __name__ == "__main__":
     main()
+
+# usage: python examples/run_year_forward_with_latents.py --zarr-path <path_to_zarr> --start-year 2018 --end-year 2018 --work-dir ./output_dir --max-samples 5

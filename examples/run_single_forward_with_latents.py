@@ -149,3 +149,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# usage: python examples/run_single_forward_with_latents.py --zarr-path <path_to_zarr> --date 2020-01-01 --work-dir ./output_dir

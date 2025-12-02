@@ -34,7 +34,12 @@ def load_batch_from_zarr(
     except Exception as e:
         raise ValueError(f"Failed to load {date_str}: {e}")
 
-    static = static_dataset or xr.open_dataset(static_path, engine="netcdf4")
+    if static_dataset is not None:
+        static = static_dataset
+        should_close_static = False
+    else:
+        static = _open_static_dataset(static_path)
+        should_close_static = True
     should_close_static = static_dataset is None
 
     def _ensure_2d(data_array: xr.DataArray) -> torch.Tensor:
@@ -81,6 +86,13 @@ def load_batch_from_zarr(
     finally:
         if should_close_static:
             static.close()
+
+
+def _open_static_dataset(path: str) -> xr.Dataset:
+    try:
+        return xr.open_dataset(path, engine="netcdf4")
+    except OSError:
+        return xr.open_dataset(path, engine="scipy")
 
 
 if __name__ == "__main__":

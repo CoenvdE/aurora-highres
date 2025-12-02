@@ -41,3 +41,7 @@ examples/downloads/
 examples/hres_vis
 
 __pycache__/
+
+run_single_forward_latents
+run_year_forward_latents
+run_single_forward
