@@ -182,6 +182,11 @@ def main() -> None:
     region_pred = region_pred.to("cpu")
     print(f"Decoded regional field shape: {region_pred.shape}")
 
+    # Collapse decoded regional field to a single 2D map for plotting.
+    # region_pred has shape [batch, vars, levels, H, W]; take first batch,
+    # first variable, and average over levels.
+    region_field = region_pred[0, 0].mean(dim=0)  # [H, W]
+
     # Extract global reference surface field and coordinates, mirroring
     # decode_deag_latents_region.py's usage pattern. We only need the
     # relevant atmospheric variable from the prediction for plotting.
@@ -193,6 +198,9 @@ def main() -> None:
         )
 
     global_pred = global_prediction.atmos_vars[var_name].to("cpu")
+    # global_pred is typically [batch, history, levels, H, W]; collapse to
+    # a single 2D map in the same way as the regional field.
+    global_field = global_pred[0, 0].mean(dim=0)  # [H, W]
     # Convert coordinates to NumPy arrays for plotting helpers that use NumPy APIs.
     latitudes = batch.metadata.lat.detach().cpu().numpy()
     longitudes = batch.metadata.lon.detach().cpu().numpy()
@@ -206,16 +214,16 @@ def main() -> None:
     )
 
     _plot_world_and_region(
-        region_pred,
+        region_field,
         extent,
         region_bounds,
         "atmos",
         args.var,
         batch.metadata.time[0],
-        global_pred,
+        global_field,
         latitudes,
         longitudes,
-        color_limits=_compute_color_limits(global_pred, region_pred),
+        color_limits=_compute_color_limits(global_field, region_field),
     )
 
 
