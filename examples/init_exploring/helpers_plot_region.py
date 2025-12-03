@@ -150,10 +150,6 @@ def _plot_world_and_region(
     else:
         prediction_arr = np.asarray(prediction).squeeze()
     global_pred_arr = np.asarray(global_pred).squeeze()
-    if global_pred_arr.ndim == 2:
-        global_pred_arr = global_pred_arr[:, sort_idx]
-    else:
-        global_pred_arr = np.take(global_pred_arr, sort_idx, axis=-1)
 
     if color_limits is None:
         vmin, vmax = _compute_color_limits(global_pred_arr, prediction_arr)
