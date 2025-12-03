@@ -102,7 +102,7 @@ def main() -> None:
             "lat_shape": tuple(batch.metadata.lat.shape),
             "lon_shape": tuple(batch.metadata.lon.shape),
             "patch_size": model.patch_size,
-            "atmos_levels": batch.metadata.atmos_levels.detach().cpu(),
+            "atmos_levels": tuple(batch.metadata.atmos_levels),
         },
     }, patch_grid_file)
 
