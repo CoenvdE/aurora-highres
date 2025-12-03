@@ -23,6 +23,7 @@ from examples.init_exploring.utils import (
 from examples.init_exploring.helpers_plot_region import (
     _compute_color_limits,
     _plot_world_and_region,
+    _plot_patchiness_comparison,
 )
 from examples.init_exploring.region_selection import (
     prepare_region_for_decode,
@@ -223,6 +224,18 @@ def main(latents_path: Path | None = None) -> None:
         latitudes,
         longitudes,
         color_limits=_compute_color_limits(global_pred, region_pred)
+    )
+
+    # Also show patchiness diagnostic for fair comparison with Pipeline 2
+    print("\n=== DIAGNOSTIC: Showing decoded region with narrow color scale ===")
+    print("This reveals any patchiness in the decoded-from-latents output.")
+    _plot_patchiness_comparison(
+        region_pred,
+        extent,
+        mode,
+        "2t",
+        patch_size=model.decoder.patch_size,
+        origin="upper",  # ERA5 has lat decreasing
     )
 
 
