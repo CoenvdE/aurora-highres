@@ -24,6 +24,9 @@ from examples.init_exploring.utils import (
     ensure_static_dataset,
     load_model,
 )
+from examples.init_exploring.region_selection import (
+    prepare_region_for_capture,
+)
 
 DEFAULT_ZARR_PATH = (
     "/projects/2/managed_datasets/ERA5/era5-gcp-zarr/ar/"
@@ -35,129 +38,6 @@ DEFAULT_LAT_MIN = 30.0
 DEFAULT_LAT_MAX = 70.0
 DEFAULT_LON_MIN = -30.0
 DEFAULT_LON_MAX = 50.0
-
-
-def _select_region_latents(
-    latents: torch.Tensor,
-    patch_shape: tuple[int, int],
-    row_start: int,
-    row_end: int,
-    col_start: int,
-    col_end: int,
-) -> tuple[torch.Tensor, int, int]:
-    """Slice a rectangular subset of latents in patch space.
-
-    Latents are expected to have shape (batch, patches, levels, embed_dim),
-    where patches = lat_patches * lon_patches.
-    """
-    lat_patches, lon_patches = patch_shape
-    batch_size, _, levels, embed_dim = latents.shape
-    patch_rows = row_end - row_start + 1
-    patch_cols = col_end - col_start + 1
-
-    latents = latents.reshape(
-        batch_size,
-        lat_patches,
-        lon_patches,
-        levels,
-        embed_dim,
-    )
-    latents = latents[
-        :,
-        row_start: row_end + 1,
-        col_start: col_end + 1,
-        :,
-        :,
-    ].contiguous()
-    latents = latents.reshape(
-        batch_size,
-        patch_rows * patch_cols,
-        levels,
-        embed_dim,
-    )
-    return latents, patch_rows, patch_cols
-
-
-def _prepare_region_selection(
-    *,
-    mode: str,
-    requested_bounds: Dict[str, Tuple[float, float]],
-    patch_grid: dict,
-    surface_latents: torch.Tensor | None = None,
-    atmos_latents: torch.Tensor | None = None,
-) -> tuple[torch.Tensor, int, int, Dict[str, Tuple[float, float]]]:
-    """Slice latents and derive bounds for the requested region.
-
-    This uses the same patch-grid based selection logic as
-    `decode_deag_latents_region._prepare_region_selection`, but returns only
-    the region latents, patch grid dimensions and effective region bounds.
-    """
-
-    centres = patch_grid["centres"]  # (patch_count, 2) [lat, lon]
-    patch_shape = patch_grid["patch_shape"]  # (lat_patches, lon_patches)
-    lat_min_req, lat_max_req = requested_bounds["lat"]
-    lon_min_req, lon_max_req = requested_bounds["lon"]
-
-    centres_np = centres.detach().cpu().numpy()
-    lat_centres = centres_np[:, 0]
-    lon_centres = centres_np[:, 1]
-
-    lat_mask = (lat_centres >= lat_min_req) & (lat_centres <= lat_max_req)
-    lon_mask = (lon_centres >= lon_min_req) & (lon_centres <= lon_max_req)
-    mask = lat_mask & lon_mask
-    if not np.any(mask):
-        raise ValueError("Requested bounds do not overlap any patches.")
-
-    indices = np.where(mask)[0]
-    lat_indices, lon_indices = np.unravel_index(indices, patch_shape)
-    row_start = int(lat_indices.min())
-    row_end = int(lat_indices.max())
-    col_start = int(lon_indices.min())
-    col_end = int(lon_indices.max())
-
-    if mode == "surface":
-        if surface_latents is None:
-            raise ValueError("Surface latents are required for surface mode.")
-        region_latents, patch_rows, patch_cols = _select_region_latents(
-            surface_latents,
-            patch_shape,
-            row_start,
-            row_end,
-            col_start,
-            col_end,
-        )
-    elif mode == "atmos":
-        if atmos_latents is None:
-            raise ValueError(
-                "Atmospheric latents are required for atmos mode.")
-        region_latents, patch_rows, patch_cols = _select_region_latents(
-            atmos_latents,
-            patch_shape,
-            row_start,
-            row_end,
-            col_start,
-            col_end,
-        )
-    else:
-        raise ValueError(f"Invalid mode: {mode}")
-
-    lat_used = lat_centres[indices]
-    lon_used = lon_centres[indices]
-    region_bounds = {
-        "lat": (float(lat_used.min()), float(lat_used.max())),
-        "lon": (float(lon_used.min()), float(lon_used.max())),
-    }
-
-    return (
-        region_latents,
-        patch_rows,
-        patch_cols,
-        region_bounds,
-        row_start,
-        row_end,
-        col_start,
-        col_end,
-    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -305,7 +185,7 @@ def main() -> None:
         row_end,
         col_start,
         col_end,
-    ) = _prepare_region_selection(
+    ) = prepare_region_for_capture(
         mode="surface",
         requested_bounds=requested_bounds,
         patch_grid=patch_grid,
@@ -321,7 +201,7 @@ def main() -> None:
         row_end_atm,
         col_start_atm,
         col_end_atm,
-    ) = _prepare_region_selection(
+    ) = prepare_region_for_capture(
         mode="atmos",
         requested_bounds=requested_bounds,
         patch_grid=patch_grid,
