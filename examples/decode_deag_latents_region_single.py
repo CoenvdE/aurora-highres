@@ -193,8 +193,9 @@ def main() -> None:
         )
 
     global_pred = global_prediction.atmos_vars[var_name].to("cpu")
-    latitudes = batch.metadata.lat
-    longitudes = batch.metadata.lon
+    # Convert coordinates to NumPy arrays for plotting helpers that use NumPy APIs.
+    latitudes = batch.metadata.lat.detach().cpu().numpy()
+    longitudes = batch.metadata.lon.detach().cpu().numpy()
 
     # Derive extent from stored region bounds.
     extent = _bounds_to_extent(region_bounds)
