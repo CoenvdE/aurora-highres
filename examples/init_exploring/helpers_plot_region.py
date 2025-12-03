@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import warnings
+import os
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -253,7 +254,10 @@ def _plot_world_and_region(
         aspect=40,
     ).set_label("Kelvin (K)")
     plt.tight_layout()
-    plt.savefig("examples/latents/decoded_region_map.png")
+
+    output_dir = "examples/latents"
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(os.path.join(output_dir, "decoded_region_map.png"))
     plt.show()
 
 
