@@ -113,6 +113,17 @@ def _plot_world_and_region(
     color_limits: tuple[float, float] | None = None,
 ) -> None:
     """Plot three panels showing the global forecast and the decoded subset."""
+    # Ensure latitude/longitude are NumPy arrays (they may be torch.Tensors).
+    if isinstance(latitudes, torch.Tensor):
+        latitudes = latitudes.detach().cpu().numpy()
+    else:
+        latitudes = np.asarray(latitudes)
+
+    if isinstance(longitudes, torch.Tensor):
+        longitudes = longitudes.detach().cpu().numpy()
+    else:
+        longitudes = np.asarray(longitudes)
+
     time_np = np.datetime64(time)
     lat_increasing = latitudes[0] < latitudes[-1]
     global_origin = "lower" if lat_increasing else "upper"
