@@ -261,6 +261,87 @@ def _plot_world_and_region(
     plt.show()
 
 
+def _plot_region_only(
+    prediction: torch.Tensor | np.ndarray,
+    extent: tuple[float, float, float, float],
+    component: str,
+    variable: str,
+    time: np.datetime64 | None,
+    color_limits: tuple[float, float] | None = None,
+) -> None:
+    """Plot a single regional panel (no global context).
+
+    This treats the inputs as purely regional data and avoids any
+    assumptions about global grids. It is intended for use when only
+    regional latents have been decoded.
+    """
+
+    if isinstance(prediction, torch.Tensor):
+        prediction_arr = prediction.detach().cpu().numpy().squeeze()
+    else:
+        prediction_arr = np.asarray(prediction).squeeze()
+
+    if color_limits is None:
+        vmin, vmax = _compute_color_limits(prediction_arr)
+    else:
+        vmin, vmax = map(float, color_limits)
+
+    time_str = (
+        np.datetime_as_string(np.datetime64(time), unit="m")
+        if time is not None
+        else "NaT"
+    )
+    region_title = f"Decoded {component} {variable} — {time_str}"
+
+    fig, ax_region = plt.subplots(
+        1,
+        1,
+        figsize=(10, 6),
+        subplot_kw={"projection": ccrs.PlateCarree()},
+    )
+
+    _style_map_axis(
+        ax_region,
+        ocean_color="#d0e7ff",
+        land_color="#f0f0f0",
+        show_labels=True,
+    )
+
+    im_region = ax_region.imshow(
+        prediction_arr,
+        extent=extent,
+        origin="lower",
+        transform=ccrs.PlateCarree(),
+        cmap="coolwarm",
+        vmin=vmin,
+        vmax=vmax,
+        zorder=3,
+        alpha=0.9,
+    )
+    ax_region.set_title(region_title)
+    ax_region.set_extent(
+        (extent[0], extent[1], extent[2], extent[3]),
+        crs=ccrs.PlateCarree(),
+    )
+    ax_region.set_xticks([])
+    ax_region.set_yticks([])
+
+    fig.colorbar(
+        im_region,
+        ax=ax_region,
+        orientation="horizontal",
+        pad=0.04,
+        aspect=40,
+    ).set_label("Kelvin (K)")
+
+    plt.tight_layout()
+
+    output_dir = "examples/latents"
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(os.path.join(output_dir, "decoded_region_only_map.png"))
+    plt.show()
+
+
 def _bounds_to_extent(bounds: dict[str, tuple[float, float]]) -> tuple[float, float, float, float]:
     return (
         float(bounds["lon"][0]),
@@ -274,4 +355,5 @@ __all__ = [
     "_bounds_to_extent",
     "_compute_color_limits",
     "_plot_world_and_region",
+    "_plot_region_only",
 ]

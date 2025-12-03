@@ -38,6 +38,7 @@ from examples.init_exploring.helpers_plot_region import (
     _bounds_to_extent,
     _compute_color_limits,
     _plot_world_and_region,
+    _plot_region_only,
 )
 
 
@@ -327,23 +328,16 @@ def main() -> None:
 
     print(f"Decoded {mode_label} variable {args.var_name}: {decoded.shape}")
 
-    region_field = decoded[0, 0].detach().cpu().numpy()
+    region_field = decoded[0, 0]
 
-    # Use a blank global field with same size as region for colour scaling.
-    global_pred = region_field[None, None, ...]
-    color_limits = _compute_color_limits(
-        global_pred, region_field[None, None, ...])
+    color_limits = _compute_color_limits(region_field)
 
-    _plot_world_and_region(
-        region_field[None, None, ...],  # shape (1,1,H,W)
+    _plot_region_only(
+        region_field[None, None, ...],  # shape (1,1,H,W) for consistency
         extent,
-        region_bounds,
         mode_label,
         args.var_name,
         None,  # timestamp (optional)
-        global_pred,
-        latitudes,
-        longitudes,
         color_limits=color_limits,
     )
 
