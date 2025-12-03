@@ -158,9 +158,11 @@ def main() -> None:
     model = load_model(device)
     model.eval()
 
+    # Run a global forward pass to obtain a reference prediction for
+    # plotting. Keep this as a full `Batch` so we retain metadata.
     with torch.no_grad():
         print("Running global forward pass for reference field...")
-        global_prediction = model(batch_device).to("cpu")
+        global_prediction = model(batch_device)
 
     # Prepare inputs for the decoder helper.
     atmos_vars = [args.var]
@@ -181,8 +183,16 @@ def main() -> None:
     print(f"Decoded regional field shape: {region_pred.shape}")
 
     # Extract global reference surface field and coordinates, mirroring
-    # decode_deag_latents_region.py's usage pattern.
-    global_pred = global_prediction
+    # decode_deag_latents_region.py's usage pattern. We only need the
+    # relevant atmospheric variable from the prediction for plotting.
+    var_name = args.var
+    if var_name not in global_prediction.atmos_vars:
+        raise KeyError(
+            f"Variable {var_name!r} not found in model atmospheric outputs. "
+            f"Available variables: {sorted(global_prediction.atmos_vars.keys())!r}"
+        )
+
+    global_pred = global_prediction.atmos_vars[var_name].to("cpu")
     latitudes = batch.metadata.lat
     longitudes = batch.metadata.lon
 
@@ -200,7 +210,7 @@ def main() -> None:
         region_bounds,
         "atmos",
         args.var,
-        global_prediction.metadata.time[0],
+        batch.metadata.time[0],
         global_pred,
         latitudes,
         longitudes,
