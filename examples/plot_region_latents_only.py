@@ -121,12 +121,16 @@ def _prepare_region_from_patch_grid(
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,
+    bool,
 ]:
     """Load region latents and derive bounds/extents using saved patch_grid + attrs.
 
     Returns:
         region_latents, patch_rows, patch_cols, region_bounds, extent,
-        latitudes, longitudes
+        latitudes, longitudes, atmos_levels, lat_decreasing
+
+        lat_decreasing: True if latitudes go from north to south (row 0 = north),
+            which is typical for ERA5 data. Use origin="upper" for plotting.
     """
     # Load patch grid metadata
     grid_obj = torch.load(patch_grid_path)
@@ -138,6 +142,14 @@ def _prepare_region_from_patch_grid(
 
     centres = patch_grid["centres"]  # (patch_count, 2) [lat, lon]
     patch_shape = patch_grid["patch_shape"]  # (lat_patches, lon_patches)
+
+    # Reshape centres to 2D to determine latitude orientation
+    lat_patches, lon_patches = patch_shape
+    centres_2d = centres.reshape(lat_patches, lon_patches, 2)
+    # Check if row 0 has higher latitude than the last row (north to south)
+    lat_row_0 = float(centres_2d[0, 0, 0])
+    lat_row_last = float(centres_2d[-1, 0, 0])
+    lat_decreasing = lat_row_0 > lat_row_last  # True for ERA5 (90 -> -90)
 
     centres_np = centres.detach().cpu().numpy()
     lat_centres = centres_np[:, 0]
@@ -203,6 +215,7 @@ def _prepare_region_from_patch_grid(
         latitudes,
         longitudes,
         atmos_levels,
+        lat_decreasing,
     )
 
 
@@ -283,12 +296,15 @@ def main() -> None:
         latitudes,
         longitudes,
         atmos_levels,
+        lat_decreasing,
     ) = _prepare_region_from_patch_grid(
         patch_grid_path,
         latents_h5,
         args.timestamp,
         args.mode,
     )
+    # Determine plot origin: "upper" if lat decreases (north to south), "lower" otherwise
+    plot_origin = "upper" if lat_decreasing else "lower"
 
     var_names = [args.var_name]
     if args.mode == "surface":
@@ -339,6 +355,7 @@ def main() -> None:
         args.var_name,
         None,  # timestamp (optional)
         color_limits=color_limits,
+        origin=plot_origin,
     )
 
 

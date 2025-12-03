@@ -112,8 +112,15 @@ def _plot_world_and_region(
     latitudes: np.ndarray,
     longitudes: np.ndarray,
     color_limits: tuple[float, float] | None = None,
+    origin: str | None = None,
 ) -> None:
-    """Plot three panels showing the global forecast and the decoded subset."""
+    """Plot three panels showing the global forecast and the decoded subset.
+
+    Args:
+        origin: Optional override for imshow origin. If None, auto-detect from
+            latitudes array. Use "upper" when latitudes decrease (north to south,
+            typical for ERA5), "lower" when latitudes increase.
+    """
     # Ensure latitude/longitude are NumPy arrays (they may be torch.Tensors).
     if isinstance(latitudes, torch.Tensor):
         latitudes = latitudes.detach().cpu().numpy()
@@ -126,8 +133,11 @@ def _plot_world_and_region(
         longitudes = np.asarray(longitudes)
 
     time_np = np.datetime64(time)
-    lat_increasing = latitudes[0] < latitudes[-1]
-    global_origin = "lower" if lat_increasing else "upper"
+    if origin is not None:
+        global_origin = origin
+    else:
+        lat_increasing = latitudes[0] < latitudes[-1]
+        global_origin = "lower" if lat_increasing else "upper"
     normalized_lon = _normalize_lon(longitudes)
     sort_idx = np.argsort(normalized_lon)
     sorted_lon = normalized_lon[sort_idx]
@@ -268,12 +278,17 @@ def _plot_region_only(
     variable: str,
     time: np.datetime64 | None,
     color_limits: tuple[float, float] | None = None,
+    origin: str = "upper",
 ) -> None:
     """Plot a single regional panel (no global context).
 
     This treats the inputs as purely regional data and avoids any
     assumptions about global grids. It is intended for use when only
     regional latents have been decoded.
+
+    Args:
+        origin: Image origin for imshow. Use "upper" when latitudes decrease
+            (north to south, typical for ERA5), "lower" when latitudes increase.
     """
 
     if isinstance(prediction, torch.Tensor):
@@ -310,7 +325,7 @@ def _plot_region_only(
     im_region = ax_region.imshow(
         prediction_arr,
         extent=extent,
-        origin="lower",
+        origin=origin,
         transform=ccrs.PlateCarree(),
         cmap="coolwarm",
         vmin=vmin,
