@@ -1,4 +1,5 @@
 
+import numpy as np
 import pandas as pd
 import torch
 import xarray as xr
@@ -24,13 +25,21 @@ def load_batch_from_zarr(
     dataset: xr.Dataset | None = None,
     static_dataset: xr.Dataset | None = None,
 ) -> Batch:
-    """Construct a Batch from ERA5 stored in Zarr/NetCDF."""
+    """Construct a Batch from ERA5 stored in Zarr/NetCDF.
+
+    Aurora requires two consecutive timesteps as input (t-1, t-0) to predict
+    6 hours ahead. This function loads 00:00 and 06:00 for the given date,
+    so the prediction will be for 12:00.
+    """
 
     ds = dataset or xr.open_zarr(zarr_path, consolidated=True)
 
-    target_time = f"{date_str}T12:00:00"
+    # Load two input timesteps: 00:00 and 06:00 -> prediction at 12:00
+    time_t0 = f"{date_str}T00:00:00"
+    time_t1 = f"{date_str}T06:00:00"
     try:
-        frame = ds.sel(time=target_time, method="nearest").load()
+        frame_t0 = ds.sel(time=time_t0, method="nearest").load()
+        frame_t1 = ds.sel(time=time_t1, method="nearest").load()
     except Exception as e:
         raise ValueError(f"Failed to load {date_str}: {e}")
 
@@ -55,14 +64,27 @@ def load_batch_from_zarr(
             f"but has shape {values.shape}."
         )
 
-    # 4. Construct Batch
+    def _stack_surf_var(name: str) -> torch.Tensor:
+        """Stack two timesteps for a surface variable: (1, 2, lat, lon)."""
+        arr_t0 = frame_t0[VAR_MAP[name]].values
+        arr_t1 = frame_t1[VAR_MAP[name]].values
+        return torch.from_numpy(np.stack([arr_t0, arr_t1], axis=0)[None])
+
+    def _stack_atmos_var(name: str) -> torch.Tensor:
+        """Stack two timesteps for an atmos variable: (1, 2, level, lat, lon)."""
+        arr_t0 = frame_t0[VAR_MAP[name]].values
+        arr_t1 = frame_t1[VAR_MAP[name]].values
+        return torch.from_numpy(np.stack([arr_t0, arr_t1], axis=0)[None])
+
+    # Construct Batch with two input timesteps (00:00, 06:00)
+    # Metadata.time is set to the second timestep (06:00) per Aurora convention
     try:
         return Batch(
             surf_vars={
-                "2t": torch.from_numpy(frame[VAR_MAP["2t"]].values[None, None]),
-                "10u": torch.from_numpy(frame[VAR_MAP["10u"]].values[None, None]),
-                "10v": torch.from_numpy(frame[VAR_MAP["10v"]].values[None, None]),
-                "msl": torch.from_numpy(frame[VAR_MAP["msl"]].values[None, None]),
+                "2t": _stack_surf_var("2t"),
+                "10u": _stack_surf_var("10u"),
+                "10v": _stack_surf_var("10v"),
+                "msl": _stack_surf_var("msl"),
             },
             static_vars={
                 "z": _ensure_2d(static["z"]),
@@ -70,17 +92,18 @@ def load_batch_from_zarr(
                 "lsm": _ensure_2d(static["lsm"]),
             },
             atmos_vars={
-                "t": torch.from_numpy(frame[VAR_MAP["t"]].values[None, None]),
-                "u": torch.from_numpy(frame[VAR_MAP["u"]].values[None, None]),
-                "v": torch.from_numpy(frame[VAR_MAP["v"]].values[None, None]),
-                "q": torch.from_numpy(frame[VAR_MAP["q"]].values[None, None]),
-                "z": torch.from_numpy(frame[VAR_MAP["z"]].values[None, None]),
+                "t": _stack_atmos_var("t"),
+                "u": _stack_atmos_var("u"),
+                "v": _stack_atmos_var("v"),
+                "q": _stack_atmos_var("q"),
+                "z": _stack_atmos_var("z"),
             },
             metadata=Metadata(
-                lat=torch.from_numpy(frame.latitude.values),
-                lon=torch.from_numpy(frame.longitude.values),
-                time=(pd.to_datetime(frame.time.values).to_pydatetime(),),
-                atmos_levels=tuple(int(lvl) for lvl in frame.level.values),
+                lat=torch.from_numpy(frame_t1.latitude.values),
+                lon=torch.from_numpy(frame_t1.longitude.values),
+                # Time is the second input timestep (06:00); prediction will be +6h (12:00)
+                time=(pd.to_datetime(frame_t1.time.values).to_pydatetime(),),
+                atmos_levels=tuple(int(lvl) for lvl in frame_t1.level.values),
             ),
         )
     finally:
