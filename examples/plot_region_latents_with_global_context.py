@@ -10,6 +10,7 @@ zoomed-in regional map.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -217,7 +218,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timestamp",
         type=str,
-        default="2020-01-01T18-00-00",
+        default="2020-01-01T12-00-00",
         help=(
             "Timestamp label inside the HDF5 file, e.g. 2020-01-01T12-00-00 "
             "(must match the label written by the forward script)."
@@ -327,6 +328,9 @@ def main() -> None:
     # Color limits from regional data only (no global prediction available in Pipeline 2)
     color_limits = _compute_color_limits(region_field.detach().cpu())
 
+    # Parse timestamp from CLI argument for display
+    timestamp_dt = datetime.strptime(args.timestamp, "%Y-%m-%dT%H-%M-%S")
+
     # Plot region with world map showing location (no full global prediction available)
     _plot_region_with_location(
         region_field[None, None, ...].detach().cpu(),
@@ -334,7 +338,7 @@ def main() -> None:
         region_bounds,
         mode_label,
         args.var_name,
-        None,
+        timestamp_dt,
         color_limits=color_limits,
         origin=plot_origin,
     )
