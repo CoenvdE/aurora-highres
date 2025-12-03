@@ -314,7 +314,7 @@ def main() -> None:
         (1, 1, global_height, global_width),
         float("nan"),
         dtype=region_field.dtype,
-    )
+    ).to(region_field.device)
 
     # Approximate placement: align the regional field at the centre of the
     # global grid using the region bounds.
@@ -326,18 +326,21 @@ def main() -> None:
     end_col = start_col + region_field.shape[-1]
     global_field[0, 0, start_row:end_row, start_col:end_col] = region_field
 
-    color_limits = _compute_color_limits(global_field, region_field)
+    color_limits = _compute_color_limits(
+        global_field.detach().cpu(),
+        region_field.detach().cpu(),
+    )
 
     _plot_world_and_region(
-        region_field[None, None, ...],
+        region_field[None, None, ...].detach().cpu(),
         extent,
         region_bounds,
         mode_label,
         args.var_name,
         None,
-        global_field,
-        latitudes,
-        longitudes,
+        global_field.detach().cpu(),
+        latitudes.detach().cpu(),
+        longitudes.detach().cpu(),
         color_limits=color_limits,
     )
 
