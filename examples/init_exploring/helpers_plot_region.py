@@ -101,7 +101,7 @@ def _style_map_axis(
 
 
 def _plot_world_and_region(
-    prediction: torch.Tensor,
+    prediction: torch.Tensor | np.ndarray,
     extent: tuple[float, float, float, float],
     region_bounds: dict[str, tuple[float, float]],
     component: str,
@@ -145,7 +145,10 @@ def _plot_world_and_region(
         float(np.max(latitudes) + lat_half_step),
     )
 
-    prediction_arr = prediction.detach().cpu().numpy().squeeze()
+    if isinstance(prediction, torch.Tensor):
+        prediction_arr = prediction.detach().cpu().numpy().squeeze()
+    else:
+        prediction_arr = np.asarray(prediction).squeeze()
     global_pred_arr = np.asarray(global_pred).squeeze()
     if global_pred_arr.ndim == 2:
         global_pred_arr = global_pred_arr[:, sort_idx]
