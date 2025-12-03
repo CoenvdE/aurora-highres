@@ -201,9 +201,12 @@ def main() -> None:
     # global_pred is typically [batch, history, levels, H, W]; collapse to
     # a single 2D map in the same way as the regional field.
     global_field = global_pred[0, 0].mean(dim=0)  # [H, W]
-    # Convert coordinates to NumPy arrays for plotting helpers that use NumPy APIs.
+
+    # Convert coordinates to NumPy arrays for plotting helpers that use NumPy
+    # APIs and normalise longitudes to [-180, 180) for Cartopy.
     latitudes = batch.metadata.lat.detach().cpu().numpy()
-    longitudes = batch.metadata.lon.detach().cpu().numpy()
+    longitudes_raw = batch.metadata.lon.detach().cpu().numpy()
+    longitudes = ((longitudes_raw + 180.0) % 360.0) - 180.0
 
     # Derive extent from stored region bounds.
     extent = _bounds_to_extent(region_bounds)
