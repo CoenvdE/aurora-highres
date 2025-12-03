@@ -256,6 +256,8 @@ def main() -> None:
         longitudes,
         atmos_levels,
         patch_shape,
+        row_start,
+        col_start,
     ) = _load_region_artifacts(
         latents_dir,
         args.latents_file_name,
