@@ -56,7 +56,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--latents-file-name",
         type=str,
-        default="pressure_surface_latents.h5",
+        default="pressure_surface_latents_region.h5",
         help=(
             "Name of the HDF5 latents file under <work-dir>/latents/. "
             "For regional latents use 'pressure_surface_latents_region.h5'."
@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--group-name",
         type=str,
-        default="pressure_latents",
+        default="pressure_latents_region",
         help=(
             "HDF5 group containing the latents (e.g. 'pressure_latents', "
             "'surface_latents', 'pressure_latents_region', "
@@ -75,10 +75,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timestamp",
         type=str,
-        required=True,
+        # required=True,
+        default="2020-01-01T18-00-00",
         help=(
             "Timestamp label of the dataset inside the group, e.g. "
-            "'2020-01-01T12-00-00'."
+            "'2020-01-01T18-00-00'."
         ),
     )
     return parser.parse_args()
