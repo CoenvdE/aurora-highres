@@ -11,7 +11,7 @@ import h5py
 import torch
 
 from examples.extract_latents import register_latent_hooks
-from examples.load_era_batch_snellius import load_batch_from_zarr
+from examples.init_exploring.load_era_batch_snellius import load_batch_from_zarr
 from examples.init_exploring.utils import (
     compute_patch_grid,
     ensure_static_dataset,
@@ -102,39 +102,52 @@ def main() -> None:
             "lat_shape": tuple(batch.metadata.lat.shape),
             "lon_shape": tuple(batch.metadata.lon.shape),
             "patch_size": model.patch_size,
+            "atmos_levels": batch.metadata.atmos_levels.detach().cpu(),
         },
     }, patch_grid_file)
 
-    latents_key = "decoder.deaggregated_atmospheric_latents"
-    if latents_key not in captures:
-        raise KeyError(
-            f"Latents dictionary does not contain {latents_key!r}."
-            " Ensure the decoder hook is emitting deaggregated latents."
-        )
+    deagg_latents = captures.get("decoder.deaggregated_atmospheric_latents")
+    surface_latents = captures.get("decoder.surface_latents")
+    deagg_latents = deagg_latents.detach().cpu()
+    surface_latents = surface_latents.detach().cpu()
 
-    deagg_latents = captures[latents_key].detach().cpu()
     timestamp_label = timestamp.strftime("%Y-%m-%dT%H-%M-%S")
-    latents_h5 = latents_dir / "deaggregated_latents.h5"
+    latents_h5 = latents_dir / "pressure_surface_latents.h5"
     print(
-        "Writing deaggregated latents for",
+        "Writing decoder latents for",
         timestamp_label,
         "to",
         latents_h5,
     )
 
     with h5py.File(latents_h5, "a") as handle:
-        latents_group = handle.require_group("latents")
-        if timestamp_label in latents_group:
-            del latents_group[timestamp_label]
-        dataset = latents_group.create_dataset(
+        levels_group = handle.require_group("pressure_latents")
+        if timestamp_label in levels_group:
+            del levels_group[timestamp_label]
+
+        pressure_dataset = levels_group.create_dataset(
             timestamp_label,
             data=deagg_latents.numpy(),
             compression="gzip",
         )
-        dataset.attrs["timestamp"] = timestamp.isoformat()
-        dataset.attrs["shape"] = deagg_latents.shape
+        pressure_dataset.attrs["timestamp"] = timestamp.isoformat()
+        pressure_dataset.attrs["shape"] = deagg_latents.shape
 
-    print("Done. Latents and tensors are ready for inspection.")
+        surface_group = handle.require_group("surface_latents")
+        if timestamp_label in surface_group:
+            del surface_group[timestamp_label]
+
+        surface_dataset = surface_group.create_dataset(
+            timestamp_label,
+            data=surface_latents.numpy(),
+            compression="gzip",
+        )
+        surface_dataset.attrs["timestamp"] = timestamp.isoformat()
+        surface_dataset.attrs["shape"] = surface_latents.shape
+
+    captures.clear()
+
+    print("Done. Pressure and surface latents are ready for inspection.")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ import torch
 import xarray as xr
 
 from examples.extract_latents import register_latent_hooks
-from examples.load_era_batch_snellius import load_batch_from_zarr
+from examples.init_exploring.load_era_batch_snellius import load_batch_from_zarr
 from examples.init_exploring.utils import (
     compute_patch_grid,
     ensure_static_dataset,

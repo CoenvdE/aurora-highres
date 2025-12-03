@@ -21,7 +21,7 @@ if str(project_root) not in sys.path:
 
 import torch
 
-from examples.load_era_batch_snellius import load_batch_from_zarr
+from examples.init_exploring.load_era_batch_snellius import load_batch_from_zarr
 from examples.init_exploring.utils import ensure_static_dataset, load_model
 
 DEFAULT_ZARR_PATH = \
