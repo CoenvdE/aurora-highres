@@ -475,7 +475,7 @@ def _plot_patchiness_comparison(
     """Diagnostic plot comparing narrow vs wide color scales and showing patch/pixel sizes.
 
     Creates a 2x2 figure:
-    - Top left: Narrow color range (auto from data) - shows patchiness
+    - Top left: Narrow color range (auto from data) - shows patchiness, with zoom box highlighted
     - Top right: Wide color range (250-300K) - hides patchiness
     - Bottom left: Zoomed crop showing individual pixels with patch grid overlay
     - Bottom right: Legend explaining patch vs pixel size
@@ -493,9 +493,32 @@ def _plot_patchiness_comparison(
     patch_rows = H // patch_size
     patch_cols = W // patch_size
 
+    # Calculate zoom region (3x3 patches from middle area)
+    crop_patches = 3
+    crop_size = crop_patches * patch_size
+    start_row = H // 3  # Start from middle-ish area
+    start_col = W // 3
+
+    # Convert pixel coordinates to geographic coordinates for the zoom box
+    lon_min, lon_max, lat_min, lat_max = extent
+    lon_per_pixel = (lon_max - lon_min) / W
+    lat_per_pixel = (lat_max - lat_min) / H
+
+    if origin == "upper":
+        # Row 0 = lat_max (north), Row H = lat_min (south)
+        zoom_lat_max = lat_max - start_row * lat_per_pixel
+        zoom_lat_min = lat_max - (start_row + crop_size) * lat_per_pixel
+    else:
+        # Row 0 = lat_min (south), Row H = lat_max (north)
+        zoom_lat_min = lat_min + start_row * lat_per_pixel
+        zoom_lat_max = lat_min + (start_row + crop_size) * lat_per_pixel
+
+    zoom_lon_min = lon_min + start_col * lon_per_pixel
+    zoom_lon_max = lon_min + (start_col + crop_size) * lon_per_pixel
+
     fig = plt.figure(figsize=(16, 14))
 
-    # Top left: Narrow color range
+    # Top left: Narrow color range with zoom box
     ax1 = fig.add_subplot(2, 2, 1, projection=ccrs.PlateCarree())
     _style_map_axis(ax1, ocean_color="#d0e7ff", land_color="#f0f0f0", show_labels=True)
     im1 = ax1.imshow(
@@ -510,9 +533,36 @@ def _plot_patchiness_comparison(
         alpha=0.9,
     )
     ax1.set_extent(extent, crs=ccrs.PlateCarree())
+
+    # Draw zoom box (yellow rectangle showing where bottom-left panel comes from)
+    zoom_rect = Rectangle(
+        (zoom_lon_min, zoom_lat_min),
+        zoom_lon_max - zoom_lon_min,
+        zoom_lat_max - zoom_lat_min,
+        transform=ccrs.PlateCarree(),
+        facecolor="none",
+        edgecolor="yellow",
+        linewidth=3,
+        linestyle="-",
+        zorder=10,
+    )
+    ax1.add_patch(zoom_rect)
+    ax1.annotate(
+        "ZOOM\nAREA",
+        xy=(zoom_lon_min, zoom_lat_max),
+        xytext=(zoom_lon_min - 5, zoom_lat_max + 3),
+        fontsize=10,
+        fontweight="bold",
+        color="yellow",
+        transform=ccrs.PlateCarree(),
+        ha="center",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="black", alpha=0.7),
+    )
+
     ax1.set_title(
         f"Narrow color range ({vmin_narrow:.1f} - {vmax_narrow:.1f} K)\n"
-        f"Range: {vmax_narrow - vmin_narrow:.1f} K — PATCHINESS VISIBLE"
+        f"Range: {vmax_narrow - vmin_narrow:.1f} K — PATCHINESS VISIBLE\n"
+        f"Yellow box = zoomed area in bottom-left"
     )
     fig.colorbar(im1, ax=ax1, orientation="horizontal", pad=0.05).set_label("Kelvin (K)")
 
@@ -540,11 +590,7 @@ def _plot_patchiness_comparison(
     # Bottom left: Zoomed crop showing pixels and patch grid
     ax3 = fig.add_subplot(2, 2, 3)
     
-    # Take a small crop (3x3 patches worth)
-    crop_patches = 3
-    crop_size = crop_patches * patch_size
-    start_row = H // 3  # Start from middle-ish area
-    start_col = W // 3
+    # Use same crop region as defined above for the zoom box
     crop = prediction_arr[start_row:start_row + crop_size, start_col:start_col + crop_size]
     
     im3 = ax3.imshow(crop, cmap="coolwarm", vmin=vmin_narrow, vmax=vmax_narrow, interpolation='nearest')
@@ -560,9 +606,9 @@ def _plot_patchiness_comparison(
         ax3.axvline(i - 0.5, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
     
     ax3.set_title(
-        f"Zoomed view: {crop_patches}x{crop_patches} patches\n"
-        f"Red lines = patch boundaries ({patch_size}x{patch_size} pixels each)\n"
-        f"Gray dashed = individual pixels (in first patch)"
+        f"Zoomed view: {crop_patches}x{crop_patches} patches (yellow box on map)\n"
+        f"Location: {zoom_lat_min:.1f}°-{zoom_lat_max:.1f}°N, {zoom_lon_min:.1f}°-{zoom_lon_max:.1f}°E\n"
+        f"Red lines = patch boundaries ({patch_size}x{patch_size} pixels each)"
     )
     ax3.set_xlabel("Pixels (longitude direction)")
     ax3.set_ylabel("Pixels (latitude direction)")
