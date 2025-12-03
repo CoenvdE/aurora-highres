@@ -9,8 +9,8 @@ from aurora import Batch, Metadata
 def load_era_batch_example(device: torch.device, download_path: str = "examples/downloads/era5") -> Batch:
     download_path = Path(download_path)
     static_vars_ds = xr.open_dataset(download_path / "static.nc", engine="h5netcdf")
-    surf_vars_ds = xr.open_dataset(download_path / "2023-01-01-surface-level.nc", engine="h5netcdf")
-    atmos_vars_ds = xr.open_dataset(download_path / "2023-01-01-atmospheric.nc", engine="h5netcdf")
+    surf_vars_ds = xr.open_dataset(download_path / "2020-01-01-surface-level.nc", engine="h5netcdf")
+    atmos_vars_ds = xr.open_dataset(download_path / "2020-01-01-atmospheric.nc", engine="h5netcdf")
 
     batch = Batch(
         surf_vars={
