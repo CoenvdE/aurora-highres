@@ -27,74 +27,36 @@ from examples.init_exploring.helpers_plot_region import (
 )
 
 
-def _normalize_longitudes(values: np.ndarray) -> np.ndarray:
-    """Shift longitudes to [-180, 180) for consistent comparisons."""
-    return ((values + 180.0) % 360.0) - 180.0
-
-
-def _interval_overlap(
-    interval_min: np.ndarray,
-    interval_max: np.ndarray,
-    query_min: float,
-    query_max: float,
-) -> np.ndarray:
-    """Return a boolean mask for intervals overlapping [query_min, query_max]."""
-    if query_min <= query_max:
-        return (interval_max >= query_min) & (interval_min <= query_max)
-    # Query spans the dateline, so allow either side of the split.
-    return (interval_max >= query_min) | (interval_min <= query_max)
-
-
-def get_patch_window_from_coord_bounds(patch_grid: dict, bounds: dict[str, tuple[float, float]]) -> tuple[int, int, int, int]:
-    lon_patches, lat_patches = patch_grid["patch_shape"]
-    lat_min, lat_max = bounds["lat"]
-    lon_min, lon_max = bounds["lon"]
-
-    bounds_arr = np.asarray(
-        patch_grid["bounds"], dtype=np.float64).reshape(lon_patches, lat_patches, 4)
-    # `compute_patch_grid` stores lon as the first dimension, so transpose to make rows=lat.
-    bounds_arr = np.transpose(bounds_arr, (1, 0, 2))
-    patch_lat_min = bounds_arr[..., 0]
-    patch_lat_max = bounds_arr[..., 1]
-    patch_lon_min = _normalize_longitudes(bounds_arr[..., 2])
-    patch_lon_max = _normalize_longitudes(bounds_arr[..., 3])
-    lon_min = float(_normalize_longitudes(
-        np.asarray(lon_min, dtype=np.float64)))
-    lon_max = float(_normalize_longitudes(
-        np.asarray(lon_max, dtype=np.float64)))
-
-    lat_mask = (patch_lat_max >= lat_min) & (patch_lat_min <= lat_max)
-    lon_mask = _interval_overlap(
-        patch_lon_min, patch_lon_max, lon_min, lon_max)
-    mask = lat_mask & lon_mask
-
-    row_idx = np.where(mask.any(axis=1))[0]
-    col_idx = np.where(mask.any(axis=0))[0]
-    if row_idx.size == 0 or col_idx.size == 0:
-        raise RuntimeError("No patches overlap the requested region.")
-    return row_idx[0], row_idx[-1], col_idx[0], col_idx[-1]
-
-
 def _select_region_latents(
     latents: torch.Tensor,
-    patch_shape_lon_first: tuple[int, int],
+    patch_shape: tuple[int, int],
     row_start: int,
     row_end: int,
     col_start: int,
     col_end: int,
 ) -> tuple[torch.Tensor, int, int]:
-    lon_patches, lat_patches = patch_shape_lon_first
+    lat_patches, lon_patches = patch_shape
     batch_size, _, levels, embed_dim = latents.shape
     patch_rows = row_end - row_start + 1
     patch_cols = col_end - col_start + 1
-    latents = latents.reshape(batch_size, lon_patches,
-                              lat_patches, levels, embed_dim)
-    latents = latents.transpose(1, 2).contiguous()
-    latents = latents[:, row_start:row_end + 1,
-                      col_start:col_end + 1, :, :].contiguous()
+    latents = latents.reshape(
+        batch_size,
+        lat_patches,
+        lon_patches,
+        levels,
+        embed_dim,
+    )
+    latents = latents[
+        :,
+        row_start: row_end + 1,
+        col_start: col_end + 1,
+        :,
+        :,
+    ].contiguous()
     latents = latents.reshape(
         batch_size, patch_rows * patch_cols, levels, embed_dim)
     return latents, patch_rows, patch_cols
+# Region selection helper used by `_prepare_region_selection`.
 
 
 def _prepare_region_selection(
@@ -105,32 +67,44 @@ def _prepare_region_selection(
     surface_latents: torch.Tensor | None = None,
     atmos_latents: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, int, int, dict[str, tuple[float, float]], tuple[float, float, float, float]]:
-    """Slice latents and derive plotting metadata for the requested region."""
-    row_start, row_end, col_start, col_end = get_patch_window_from_coord_bounds(
-        patch_grid, requested_bounds)
-    lon_patches, lat_patches = patch_grid["patch_shape"]
+    """Slice latents and derive plotting metadata for the requested region.
 
-    bounds_arr = np.asarray(patch_grid["bounds"], dtype=np.float64).reshape(
-        lon_patches, lat_patches, 4
-    ).transpose(1, 0, 2)
-    bounds_arr[..., 2] = _normalize_longitudes(bounds_arr[..., 2])
-    bounds_arr[..., 3] = _normalize_longitudes(bounds_arr[..., 3])
-    selected_bounds = bounds_arr[
-        row_start:row_end + 1, col_start:col_end + 1, :
-    ]
-    lat_min = float(selected_bounds[..., 0].min())
-    lat_max = float(selected_bounds[..., 1].max())
-    lon_min = float(selected_bounds[..., 2].min())
-    lon_max = float(selected_bounds[..., 3].max())
-    region_bounds = {"lat": (lat_min, lat_max), "lon": (lon_min, lon_max)}
-    extent = _bounds_to_extent(region_bounds)
+    This converts the requested geographic bounds into patch indices using the
+    `patch_grid` metadata produced by `compute_patch_grid`, then selects the
+    corresponding subset of latents and returns the effective bounds and image
+    extent for plotting.
+    """
+
+    centres = patch_grid["centres"]  # (patch_count, 2) [lat, lon]
+    patch_shape = patch_grid["patch_shape"]  # (lat_patches, lon_patches)
+    lat_min_req, lat_max_req = requested_bounds["lat"]
+    lon_min_req, lon_max_req = requested_bounds["lon"]
+
+    # Convert to numpy for convenience.
+    centres_np = centres.detach().cpu().numpy()
+    lat_centres = centres_np[:, 0]
+    lon_centres = centres_np[:, 1]
+
+    # Identify patches whose centres fall inside the requested bounds.
+    lat_mask = (lat_centres >= lat_min_req) & (lat_centres <= lat_max_req)
+    lon_mask = (lon_centres >= lon_min_req) & (lon_centres <= lon_max_req)
+    mask = lat_mask & lon_mask
+    if not np.any(mask):
+        raise ValueError("Requested bounds do not overlap any patches.")
+
+    indices = np.where(mask)[0]
+    lat_indices, lon_indices = np.unravel_index(indices, patch_shape)
+    row_start = int(lat_indices.min())
+    row_end = int(lat_indices.max())
+    col_start = int(lon_indices.min())
+    col_end = int(lon_indices.max())
 
     if mode == "surface":
         if surface_latents is None:
             raise ValueError("Surface latents are required for surface mode.")
         region_latents, patch_rows, patch_cols = _select_region_latents(
             surface_latents,
-            patch_grid["patch_shape"],
+            patch_shape,
             row_start,
             row_end,
             col_start,
@@ -142,7 +116,7 @@ def _prepare_region_selection(
                 "Atmospheric latents are required for atmos mode.")
         region_latents, patch_rows, patch_cols = _select_region_latents(
             atmos_latents,
-            patch_grid["patch_shape"],
+            patch_shape,
             row_start,
             row_end,
             col_start,
@@ -150,6 +124,15 @@ def _prepare_region_selection(
         )
     else:
         raise ValueError(f"Invalid mode: {mode}")
+
+    # Derive actual region bounds from patch centres used.
+    lat_used = lat_centres[indices]
+    lon_used = lon_centres[indices]
+    region_bounds = {
+        "lat": (float(lat_used.min()), float(lat_used.max())),
+        "lon": (float(lon_used.min()), float(lon_used.max())),
+    }
+    extent = _bounds_to_extent(region_bounds)
 
     return region_latents, patch_rows, patch_cols, region_bounds, extent
 
@@ -349,4 +332,4 @@ if __name__ == "__main__":
     main()
 
 # usage:
-# python -m examples.init_exploring.decode_deag_latents_region
+# python -m examples.init_exploring.WRONG_decode_deag_latents_region
