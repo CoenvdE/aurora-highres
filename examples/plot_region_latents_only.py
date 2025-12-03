@@ -224,7 +224,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timestamp",
         type=str,
-        required=True,
+        # required=True,
+        default="2020-01-01T18-00-00",
         help=(
             "Timestamp label inside the HDF5 file, e.g. 2020-01-01T12-00-00 "
             "(must match the label written by the forward script)."

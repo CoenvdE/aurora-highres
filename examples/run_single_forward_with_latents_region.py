@@ -388,7 +388,3 @@ if __name__ == "__main__":
 
 # usage:
 # python examples/run_single_forward_with_latents_region.py \
-#   --zarr-path <path_to_zarr> \
-#   --date 2020-01-01 \
-#   --work-dir ./output_dir_region \
-#   --lat-min 30 --lat-max 70 --lon-min -30 --lon-max 50
