@@ -25,6 +25,7 @@ from examples.init_exploring.helpers_plot_region import (
     _compute_color_limits,
     _plot_region_with_location,
     _bounds_to_extent,
+    _plot_patchiness_comparison,
 )
 
 
@@ -241,6 +242,11 @@ def parse_args() -> argparse.Namespace:
         default="pressure_surface_latents_region.h5",
         help="Name of the HDF5 file under <work-dir>/latents/.",
     )
+    parser.add_argument(
+        "--show-patchiness-diagnostic",
+        action="store_true",
+        help="Show diagnostic plot comparing narrow vs wide color scales and patch/pixel sizes.",
+    )
     return parser.parse_args()
 
 
@@ -332,6 +338,17 @@ def main() -> None:
         color_limits=color_limits,
         origin=plot_origin,
     )
+
+    # Optional: Show diagnostic plot comparing color scales and patch sizes
+    if args.show_patchiness_diagnostic:
+        _plot_patchiness_comparison(
+            region_field.detach().cpu(),
+            extent,
+            mode_label,
+            args.var_name,
+            patch_size=model.decoder.patch_size,
+            origin=plot_origin,
+        )
 
 
 if __name__ == "__main__":

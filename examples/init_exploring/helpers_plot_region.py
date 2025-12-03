@@ -464,10 +464,168 @@ def _plot_region_with_location(
     plt.show()
 
 
+def _plot_patchiness_comparison(
+    prediction: torch.Tensor | np.ndarray,
+    extent: tuple[float, float, float, float],
+    component: str,
+    variable: str,
+    patch_size: int,
+    origin: str = "upper",
+) -> None:
+    """Diagnostic plot comparing narrow vs wide color scales and showing patch/pixel sizes.
+
+    Creates a 2x2 figure:
+    - Top left: Narrow color range (auto from data) - shows patchiness
+    - Top right: Wide color range (250-300K) - hides patchiness
+    - Bottom left: Zoomed crop showing individual pixels with patch grid overlay
+    - Bottom right: Legend explaining patch vs pixel size
+    """
+    if isinstance(prediction, torch.Tensor):
+        prediction_arr = prediction.detach().cpu().numpy().squeeze()
+    else:
+        prediction_arr = np.asarray(prediction).squeeze()
+
+    # Compute narrow (data-driven) and wide (fixed) color limits
+    vmin_narrow, vmax_narrow = _compute_color_limits(prediction_arr)
+    vmin_wide, vmax_wide = 250.0, 300.0  # Same as Pipeline 1
+
+    H, W = prediction_arr.shape
+    patch_rows = H // patch_size
+    patch_cols = W // patch_size
+
+    fig = plt.figure(figsize=(16, 14))
+
+    # Top left: Narrow color range
+    ax1 = fig.add_subplot(2, 2, 1, projection=ccrs.PlateCarree())
+    _style_map_axis(ax1, ocean_color="#d0e7ff", land_color="#f0f0f0", show_labels=True)
+    im1 = ax1.imshow(
+        prediction_arr,
+        extent=extent,
+        origin=origin,
+        transform=ccrs.PlateCarree(),
+        cmap="coolwarm",
+        vmin=vmin_narrow,
+        vmax=vmax_narrow,
+        zorder=3,
+        alpha=0.9,
+    )
+    ax1.set_extent(extent, crs=ccrs.PlateCarree())
+    ax1.set_title(
+        f"Narrow color range ({vmin_narrow:.1f} - {vmax_narrow:.1f} K)\n"
+        f"Range: {vmax_narrow - vmin_narrow:.1f} K — PATCHINESS VISIBLE"
+    )
+    fig.colorbar(im1, ax=ax1, orientation="horizontal", pad=0.05).set_label("Kelvin (K)")
+
+    # Top right: Wide color range
+    ax2 = fig.add_subplot(2, 2, 2, projection=ccrs.PlateCarree())
+    _style_map_axis(ax2, ocean_color="#d0e7ff", land_color="#f0f0f0", show_labels=True)
+    im2 = ax2.imshow(
+        prediction_arr,
+        extent=extent,
+        origin=origin,
+        transform=ccrs.PlateCarree(),
+        cmap="coolwarm",
+        vmin=vmin_wide,
+        vmax=vmax_wide,
+        zorder=3,
+        alpha=0.9,
+    )
+    ax2.set_extent(extent, crs=ccrs.PlateCarree())
+    ax2.set_title(
+        f"Wide color range ({vmin_wide:.0f} - {vmax_wide:.0f} K)\n"
+        f"Range: {vmax_wide - vmin_wide:.0f} K — PATCHINESS HIDDEN"
+    )
+    fig.colorbar(im2, ax=ax2, orientation="horizontal", pad=0.05).set_label("Kelvin (K)")
+
+    # Bottom left: Zoomed crop showing pixels and patch grid
+    ax3 = fig.add_subplot(2, 2, 3)
+    
+    # Take a small crop (3x3 patches worth)
+    crop_patches = 3
+    crop_size = crop_patches * patch_size
+    start_row = H // 3  # Start from middle-ish area
+    start_col = W // 3
+    crop = prediction_arr[start_row:start_row + crop_size, start_col:start_col + crop_size]
+    
+    im3 = ax3.imshow(crop, cmap="coolwarm", vmin=vmin_narrow, vmax=vmax_narrow, interpolation='nearest')
+    
+    # Draw patch boundaries (thick red lines)
+    for i in range(crop_patches + 1):
+        ax3.axhline(i * patch_size - 0.5, color='red', linewidth=2, linestyle='-')
+        ax3.axvline(i * patch_size - 0.5, color='red', linewidth=2, linestyle='-')
+    
+    # Draw pixel boundaries (thin gray lines) for first patch only
+    for i in range(patch_size + 1):
+        ax3.axhline(i - 0.5, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+        ax3.axvline(i - 0.5, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+    
+    ax3.set_title(
+        f"Zoomed view: {crop_patches}x{crop_patches} patches\n"
+        f"Red lines = patch boundaries ({patch_size}x{patch_size} pixels each)\n"
+        f"Gray dashed = individual pixels (in first patch)"
+    )
+    ax3.set_xlabel("Pixels (longitude direction)")
+    ax3.set_ylabel("Pixels (latitude direction)")
+    fig.colorbar(im3, ax=ax3, orientation="horizontal", pad=0.1).set_label("Kelvin (K)")
+
+    # Bottom right: Size legend / info
+    ax4 = fig.add_subplot(2, 2, 4)
+    ax4.axis('off')
+    
+    # Calculate geographic sizes
+    lon_range = extent[1] - extent[0]
+    lat_range = extent[3] - extent[2]
+    pixel_lon_size = lon_range / W
+    pixel_lat_size = lat_range / H
+    patch_lon_size = lon_range / patch_cols
+    patch_lat_size = lat_range / patch_rows
+    
+    info_text = f"""
+    IMAGE DIMENSIONS
+    ────────────────────────────────
+    Total size: {H} x {W} pixels
+    
+    PATCH INFO
+    ────────────────────────────────
+    Patch size: {patch_size} x {patch_size} pixels
+    Number of patches: {patch_rows} x {patch_cols} = {patch_rows * patch_cols}
+    
+    GEOGRAPHIC SIZE
+    ────────────────────────────────
+    1 pixel ≈ {pixel_lat_size:.3f}° lat x {pixel_lon_size:.3f}° lon
+           ≈ {pixel_lat_size * 111:.1f} km x {pixel_lon_size * 111 * 0.7:.1f} km (at 45°N)
+    
+    1 patch ≈ {patch_lat_size:.2f}° lat x {patch_lon_size:.2f}° lon
+           ≈ {patch_lat_size * 111:.0f} km x {patch_lon_size * 111 * 0.7:.0f} km (at 45°N)
+    
+    WHY PATCHINESS?
+    ────────────────────────────────
+    Each patch is decoded INDEPENDENTLY
+    by a linear projection head.
+    No smoothing across patch boundaries.
+    
+    Narrow color range amplifies small
+    boundary discontinuities.
+    """
+    
+    ax4.text(0.05, 0.95, info_text, transform=ax4.transAxes, fontsize=11,
+             verticalalignment='top', fontfamily='monospace',
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+    plt.suptitle(f"Patchiness Diagnostic: {component} {variable}", fontsize=14, fontweight='bold')
+    plt.tight_layout()
+
+    output_dir = "examples/latents"
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(os.path.join(output_dir, "patchiness_comparison.png"), dpi=150)
+    plt.show()
+
+
 __all__ = [
     "_bounds_to_extent",
     "_compute_color_limits",
     "_plot_world_and_region",
     "_plot_region_only",
     "_plot_region_with_location",
+    "_plot_patchiness_comparison",
 ]
