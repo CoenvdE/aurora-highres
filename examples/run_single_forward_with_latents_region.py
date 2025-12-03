@@ -268,7 +268,10 @@ def main() -> None:
                 "lat_shape": tuple(batch.metadata.lat.shape),
                 "lon_shape": tuple(batch.metadata.lon.shape),
                 "patch_size": model.patch_size,
-                "atmos_levels": batch.metadata.atmos_levels.detach().cpu(),
+                # `atmos_levels` is stored as a tuple of ints/floats in
+                # `Metadata`, so just persist the raw tuple instead of
+                # treating it as a tensor.
+                "atmos_levels": tuple(batch.metadata.atmos_levels),
             },
         },
         patch_grid_file,
