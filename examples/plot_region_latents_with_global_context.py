@@ -183,6 +183,8 @@ def _load_region_artifacts(
         longitudes,
         atmos_levels,
         patch_shape,
+        row_start,
+        col_start,
     )
 
 
@@ -303,8 +305,8 @@ def main() -> None:
     region_field = decoded[0, 0]
 
     # Construct a pseudo-global container with NaNs everywhere except the
-    # regional window. This lets us reuse the existing plotting helper that
-    # expects a global field plus a regional overlay.
+    # regional window. Place the regional field according to the stored
+    # patch indices so that it appears in the correct geographic location.
     patch_size = model.decoder.patch_size
     lat_patches, lon_patches = patch_shape
     global_height = lat_patches * patch_size
@@ -316,12 +318,9 @@ def main() -> None:
         dtype=region_field.dtype,
     ).to(region_field.device)
 
-    # Approximate placement: align the regional field at the centre of the
-    # global grid using the region bounds.
-    # In future this could be replaced with a more exact mapping using the
-    # stored patch indices.
-    start_row = (global_height - region_field.shape[-2]) // 2
-    start_col = (global_width - region_field.shape[-1]) // 2
+    # Row/column indices are in patch space; convert to pixel indices.
+    start_row = row_start * patch_size
+    start_col = col_start * patch_size
     end_row = start_row + region_field.shape[-2]
     end_col = start_col + region_field.shape[-1]
     global_field[0, 0, start_row:end_row, start_col:end_col] = region_field
