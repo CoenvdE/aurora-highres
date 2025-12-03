@@ -102,10 +102,11 @@ def main() -> None:
     # Load patch grid metadata (contains centres and patch_shape).
     grid_obj = torch.load(patch_grid_path)
     patch_grid = grid_obj["patch_grid"]
-    centres = patch_grid["centres"]  # (patch_count, 2) [lat, lon]
+    centres_global = patch_grid["centres"]  # (global_patches, 2) [lat, lon]
     patch_shape = patch_grid["patch_shape"]  # (lat_patches, lon_patches)
 
-    # Load the latent tensor for the requested timestamp.
+    # Load the latent tensor for the requested timestamp and, if present,
+    # the region window in the global patch grid.
     with h5py.File(latents_h5_path, "r") as handle:
         if args.group_name not in handle:
             raise KeyError(
@@ -117,16 +118,42 @@ def main() -> None:
                 f"Timestamp {args.timestamp!r} not found in group "
                 f"{args.group_name!r} in {latents_h5_path.name}"
             )
-        latents_np = group[args.timestamp][...]
+
+        dataset = group[args.timestamp]
+        latents_np = dataset[...]
+
+        # These attrs are written by run_single_forward_with_latents_region.py
+        # and identify a rectangular window in the global patch grid. For
+        # non-regional latents files, they may be absent; in that case we
+        # default to the full grid.
+        lat_patches, lon_patches = patch_shape
+        row_start = int(handle.attrs.get("row_start", 0))
+        row_end = int(handle.attrs.get("row_end", lat_patches - 1))
+        col_start = int(handle.attrs.get("col_start", 0))
+        col_end = int(handle.attrs.get("col_end", lon_patches - 1))
 
     latents = torch.from_numpy(latents_np)
 
     # Latents are expected to be (batch, patches, levels, embed_dim).
     batch_size, patch_count, levels, embed_dim = latents.shape
 
+    # Derive the centres for this region from the global patch grid.
+    centres_global = centres_global.view(lat_patches, lon_patches, 2)
+    centres_region = centres_global[
+        row_start: row_end + 1,
+        col_start: col_end + 1,
+    ]  # (region_lat_patches, region_lon_patches, 2)
+    centres_region = centres_region.reshape(-1, 2)
+
+    if centres_region.shape[0] != patch_count:
+        raise RuntimeError(
+            "Latents patch_count (" f"{patch_count}) does not match "
+            "region centres (" f"{centres_region.shape[0]})."
+        )
+
     # Build per-patch positions by tiling centres over batch and levels.
-    # centres: (patch_count, 2) -> (1, patch_count, 1, 2)
-    centres_expanded = centres.view(1, patch_count, 1, 2)
+    # centres_region: (patch_count, 2) -> (1, patch_count, 1, 2)
+    centres_expanded = centres_region.view(1, patch_count, 1, 2)
     positions = centres_expanded.expand(batch_size, patch_count, levels, 2)
 
     print("Latents shape       :", tuple(latents.shape))
