@@ -366,9 +366,108 @@ def _bounds_to_extent(bounds: dict[str, tuple[float, float]]) -> tuple[float, fl
     )
 
 
+def _plot_region_with_location(
+    prediction: torch.Tensor | np.ndarray,
+    extent: tuple[float, float, float, float],
+    region_bounds: dict[str, tuple[float, float]],
+    component: str,
+    variable: str,
+    time: np.datetime64 | None,
+    color_limits: tuple[float, float] | None = None,
+    origin: str = "upper",
+) -> None:
+    """Plot regional data with a world map showing the region location.
+
+    This creates a 2-panel figure:
+    1. A world map with the region box highlighted (no data, just location)
+    2. The decoded regional data zoomed in
+
+    Use this when you only have regional latents and no full global prediction.
+    """
+    if isinstance(prediction, torch.Tensor):
+        prediction_arr = prediction.detach().cpu().numpy().squeeze()
+    else:
+        prediction_arr = np.asarray(prediction).squeeze()
+
+    if color_limits is None:
+        vmin, vmax = _compute_color_limits(prediction_arr)
+    else:
+        vmin, vmax = map(float, color_limits)
+
+    time_str = (
+        np.datetime_as_string(np.datetime64(time), unit="m")
+        if time is not None
+        else "NaT"
+    )
+
+    center_lon = float(
+        (region_bounds["lon"][0] + region_bounds["lon"][1]) / 2.0
+    )
+
+    fig, axes = plt.subplots(
+        1,
+        2,
+        figsize=(16, 6),
+        subplot_kw={"projection": ccrs.PlateCarree(central_longitude=center_lon)},
+    )
+    ax_world, ax_region = axes
+
+    # Left panel: World map showing region location
+    _style_map_axis(
+        ax_world,
+        ocean_color="#d0e7ff",
+        land_color="#f0f0f0",
+        show_labels=True,
+    )
+    ax_world.set_global()
+    ax_world.set_title("Region location on global map")
+    _draw_region_box(ax_world, region_bounds)
+
+    # Right panel: Decoded regional data
+    _style_map_axis(
+        ax_region,
+        ocean_color="#d0e7ff",
+        land_color="#f0f0f0",
+        show_labels=True,
+    )
+    im_region = ax_region.imshow(
+        prediction_arr,
+        extent=extent,
+        origin=origin,
+        transform=ccrs.PlateCarree(),
+        cmap="coolwarm",
+        vmin=vmin,
+        vmax=vmax,
+        zorder=3,
+        alpha=0.9,
+    )
+    region_title = f"Decoded {component} {variable} — {time_str}"
+    ax_region.set_title(region_title)
+    ax_region.set_extent(
+        (extent[0], extent[1], extent[2], extent[3]),
+        crs=ccrs.PlateCarree(),
+    )
+
+    fig.colorbar(
+        im_region,
+        ax=ax_region,
+        orientation="horizontal",
+        pad=0.04,
+        aspect=40,
+    ).set_label("Kelvin (K)")
+
+    plt.tight_layout()
+
+    output_dir = "examples/latents"
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(os.path.join(output_dir, "decoded_region_with_location.png"))
+    plt.show()
+
+
 __all__ = [
     "_bounds_to_extent",
     "_compute_color_limits",
     "_plot_world_and_region",
     "_plot_region_only",
+    "_plot_region_with_location",
 ]

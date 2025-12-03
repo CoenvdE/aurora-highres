@@ -45,3 +45,4 @@ __pycache__/
 run_single_forward_latents
 run_year_forward_latents
 run_single_forward
+run_single_forward_with_latents_region

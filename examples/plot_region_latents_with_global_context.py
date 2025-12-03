@@ -23,7 +23,7 @@ from aurora.normalisation import unnormalise_atmos_var, unnormalise_surf_var
 from examples.init_exploring.utils import load_model
 from examples.init_exploring.helpers_plot_region import (
     _compute_color_limits,
-    _plot_world_and_region,
+    _plot_region_with_location,
     _bounds_to_extent,
 )
 
@@ -318,42 +318,17 @@ def main() -> None:
 
     region_field = decoded[0, 0]
 
-    # Construct a pseudo-global container with NaNs everywhere except the
-    # regional window. Place the regional field according to the stored
-    # patch indices so that it appears in the correct geographic location.
-    patch_size = model.decoder.patch_size
-    lat_patches, lon_patches = patch_shape
-    global_height = lat_patches * patch_size
-    global_width = lon_patches * patch_size
+    # Color limits from regional data only (no global prediction available in Pipeline 2)
+    color_limits = _compute_color_limits(region_field.detach().cpu())
 
-    global_field = torch.full(
-        (1, 1, global_height, global_width),
-        float("nan"),
-        dtype=region_field.dtype,
-    ).to(region_field.device)
-
-    # Row/column indices are in patch space; convert to pixel indices.
-    start_row = row_start * patch_size
-    start_col = col_start * patch_size
-    end_row = start_row + region_field.shape[-2]
-    end_col = start_col + region_field.shape[-1]
-    global_field[0, 0, start_row:end_row, start_col:end_col] = region_field
-
-    color_limits = _compute_color_limits(
-        global_field.detach().cpu(),
-        region_field.detach().cpu(),
-    )
-
-    _plot_world_and_region(
+    # Plot region with world map showing location (no full global prediction available)
+    _plot_region_with_location(
         region_field[None, None, ...].detach().cpu(),
         extent,
         region_bounds,
         mode_label,
         args.var_name,
         None,
-        global_field.detach().cpu(),
-        latitudes.detach().cpu(),
-        longitudes.detach().cpu(),
         color_limits=color_limits,
         origin=plot_origin,
     )
