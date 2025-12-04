@@ -30,7 +30,8 @@ def main():
     print(f"  level: {ds.level.values}")
     print(f"  time: {len(ds.time)} timesteps")
     print(f"    First: {ds.time.values[0]}")
-    print(f"    Last processed: {ds.time.values[ds.processed.values].max() if ds.processed.values.any() else 'None'}")
+    processed_mask = ds.processed.values.astype(bool)
+    print(f"    Last processed: {ds.time.values[processed_mask].max() if processed_mask.any() else 'None'}")
     
     # 2. Check data arrays
     print("\n📊 DATA ARRAYS:")
@@ -50,7 +51,6 @@ def main():
     
     # 5. Validate data for processed timesteps
     print("\n✅ DATA VALIDATION:")
-    processed_mask = ds.processed.values
     n_processed = processed_mask.sum()
     
     if n_processed > 0:
