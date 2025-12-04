@@ -337,7 +337,7 @@ def main() -> None:
                 patch_rows,
                 patch_cols,
                 head_builder=lambda name: model.decoder.atmos_heads[name](
-                    region_latents.to(device), levels=atmos_levels.to(device)
+                    region_latents.to(device)
                 ),
                 unnormalise=lambda tensor, names: _unnormalise_atmos_preds(
                     tensor.squeeze(2), names, atmos_levels
