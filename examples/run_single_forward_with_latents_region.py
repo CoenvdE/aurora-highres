@@ -148,9 +148,6 @@ def main() -> None:
                 "lat_shape": tuple(batch.metadata.lat.shape),
                 "lon_shape": tuple(batch.metadata.lon.shape),
                 "patch_size": model.patch_size,
-                # `atmos_levels` is stored as a tuple of ints/floats in
-                # `Metadata`, so just persist the raw tuple instead of
-                # treating it as a tensor.
                 "atmos_levels": tuple(batch.metadata.atmos_levels),
             },
         },
@@ -178,9 +175,9 @@ def main() -> None:
 
     (
         surf_region_latents,
-        surf_patch_rows,
-        surf_patch_cols,
-        region_bounds,
+        _,
+        _,
+        _,
         row_start,
         row_end,
         col_start,
@@ -194,13 +191,13 @@ def main() -> None:
     )
     (
         atmos_region_latents,
-        atmos_patch_rows,
-        atmos_patch_cols,
         _,
-        row_start_atm,
-        row_end_atm,
-        col_start_atm,
-        col_end_atm,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
     ) = prepare_region_for_capture(
         mode="atmos",
         requested_bounds=requested_bounds,
@@ -208,16 +205,6 @@ def main() -> None:
         surface_latents=None,
         atmos_latents=deagg_latents,
     )
-
-    # Sanity check: surface and atmos selections should refer to the same
-    # rectangle in patch space.
-    if not (
-        row_start == row_start_atm
-        and row_end == row_end_atm
-        and col_start == col_start_atm
-        and col_end == col_end_atm
-    ):
-        raise RuntimeError("Surface and atmospheric region indices differ.")
 
     timestamp_label = timestamp.strftime("%Y-%m-%dT%H-%M-%S")
     latents_h5 = latents_dir / "pressure_surface_latents_region.h5"

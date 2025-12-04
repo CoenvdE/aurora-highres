@@ -78,11 +78,13 @@ def _is_usable_static_file(path: Path) -> bool:
         return False
     try:
         with xr.open_dataset(path, engine="netcdf4") as ds:  # type: ignore[misc]
+            print(f'Loading {path} with netcdf4 engine')
             ds.load()
         return True
     except Exception:
         try:
             with xr.open_dataset(path, engine="scipy") as ds:
+                print(f'Loading {path} with scipy engine')
                 ds.load()
             return True
         except Exception:
