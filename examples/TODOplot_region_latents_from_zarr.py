@@ -156,11 +156,11 @@ def load_latents_from_zarr(
     
     latents_tensor = torch.from_numpy(latents).float()
     
-    # Get metadata - support both old (lat_min) and new (region_lat_min) naming
+    # Get metadata
     patch_rows = store.attrs["surface_shape"][0]
     patch_cols = store.attrs["surface_shape"][1]
     
-    # Try new naming first, fall back to old
+    # Get region bounds for the box on world map
     if "region_lat_min" in store.attrs:
         region_bounds = {
             "lat": (store.attrs["region_lat_min"], store.attrs["region_lat_max"]),
@@ -172,7 +172,22 @@ def load_latents_from_zarr(
             "lon": (store.attrs["lon_min"], store.attrs["lon_max"]),
         }
     
-    extent = _bounds_to_extent(region_bounds)
+    # Calculate extent from ACTUAL lat/lon coordinates (not region_bounds)
+    # This ensures proper alignment with coastlines
+    lat_values = ds.lat.values
+    lon_values = ds.lon.values
+    lat_bounds = ds.lat_bounds.values  # (n_lat, 2) with [min, max]
+    lon_bounds = ds.lon_bounds.values  # (n_lon, 2) with [min, max]
+    
+    # Extent is (lon_min, lon_max, lat_min, lat_max)
+    # Use the actual patch bounds for the data extent
+    extent = (
+        float(lon_bounds[0, 0]),   # First lon patch min
+        float(lon_bounds[-1, 1]),  # Last lon patch max
+        float(lat_bounds[-1, 0]),  # Last lat patch min (southern)
+        float(lat_bounds[0, 1]),   # First lat patch max (northern)
+    )
+    
     atmos_levels = torch.tensor(store.attrs["atmos_levels"])
     
     ds.close()
@@ -222,6 +237,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="2t",
         help="Variable to decode, e.g. '2t' for surface or 't' for atmos.",
+    )
+    parser.add_argument(
+        "--level",
+        type=int,
+        default=850,
+        help="Pressure level to plot for atmos mode (default: 850 hPa)",
     )
     parser.add_argument(
         "--show-patchiness-diagnostic",
@@ -347,7 +368,16 @@ def main() -> None:
 
         print(f"Decoded {mode_label} variable {args.var_name}: {decoded.shape}")
 
-        region_field = decoded[0, 0]
+        if args.mode == "atmos":
+            # Select specific pressure level
+            level_idx = list(atmos_levels.numpy()).index(args.level)
+            region_field = decoded[0, 0, level_idx]  # Select level
+            print(f"  Selected level {args.level} hPa (index {level_idx})")
+        else:
+            region_field = decoded[0, 0]
+            # Handle case where there's an extra dim from surface levels=1
+            if region_field.dim() > 2:
+                region_field = region_field.squeeze(0)
         color_limits = _compute_color_limits(region_field.detach().cpu())
 
         # Plot
