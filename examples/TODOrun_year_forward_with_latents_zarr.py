@@ -509,15 +509,22 @@ def main() -> None:
 
             # Reshape and write to Zarr
             try:
-                # Reshape surface: (1, rows*cols, channels) -> (rows, cols, channels)
+                # Reshape surface: (1, rows*cols, 1, channels) -> (rows, cols, channels)
+                # Note: surface latents from select_region_latents have shape
+                # (batch, patches, levels=1, channels), squeeze the levels dim
                 surf_np = surf_region_latents.numpy()
-                surf_reshaped = surf_np[0].reshape(patch_rows, patch_cols, -1)
+                surf_reshaped = surf_np[0, :, 0, :].reshape(patch_rows, patch_cols, -1)
                 zarr_store["surface_latents"][time_idx] = surf_reshaped.astype(np.float32)
                 
-                # Reshape pressure: (1, levels, rows*cols, channels) -> (levels, rows, cols, channels)
+                # Reshape pressure: (1, rows*cols, levels, channels) -> (levels, rows, cols, channels)
+                # Note: select_region_latents returns (batch, patches, levels, channels)
+                # We need to reshape patches to (rows, cols), then transpose to get levels first
                 atmos_np = atmos_region_latents.numpy()
-                n_levels = atmos_np.shape[1]
-                atmos_reshaped = atmos_np[0].reshape(n_levels, patch_rows, patch_cols, -1)
+                n_levels = atmos_np.shape[2]  # levels is dim 2, not dim 1
+                # First reshape: (patches, levels, channels) -> (rows, cols, levels, channels)
+                atmos_reshaped = atmos_np[0].reshape(patch_rows, patch_cols, n_levels, -1)
+                # Then transpose to (levels, rows, cols, channels)
+                atmos_reshaped = atmos_reshaped.transpose(2, 0, 1, 3)
                 zarr_store["pressure_latents"][time_idx] = atmos_reshaped.astype(np.float32)
                 
                 # Mark as processed
