@@ -17,7 +17,7 @@ def main():
     args = parser.parse_args()
     
     print(f"Opening {args.zarr_path}...")
-    ds = xr.open_zarr(str(args.zarr_path))
+    ds = xr.open_zarr(str(args.zarr_path), consolidated=True)
     
     print("\n" + "="*60)
     print("ZARR STRUCTURE VALIDATION")
@@ -31,13 +31,14 @@ def main():
     print(f"  time: {len(ds.time)} timesteps")
     print(f"    First: {ds.time.values[0]}")
     processed_mask = ds.processed.values.astype(bool)
+    n_processed = int(processed_mask.sum())
     print(f"    Last processed: {ds.time.values[processed_mask].max() if processed_mask.any() else 'None'}")
     
     # 2. Check data arrays
     print("\n📊 DATA ARRAYS:")
     print(f"  surface_latents: {ds.surface_latents.shape}")
     print(f"  pressure_latents: {ds.pressure_latents.shape}")
-    print(f"  processed: {ds.processed.values.sum()} / {len(ds.processed)} timesteps")
+    print(f"  processed: {n_processed} / {len(ds.processed)} timesteps")
     
     # 3. Check bounds
     print("\n📐 PATCH BOUNDS:")
@@ -49,31 +50,49 @@ def main():
     for key in sorted(ds.attrs.keys()):
         print(f"  {key}: {ds.attrs[key]}")
     
-    # 5. Validate data for processed timesteps
-    print("\n✅ DATA VALIDATION:")
-    n_processed = processed_mask.sum()
+    # 5. Validate data for processed timesteps ONLY
+    print("\n✅ DATA VALIDATION (processed timesteps only):")
     
     if n_processed > 0:
-        # Check surface latents
-        surface_data = ds.surface_latents.isel(time=slice(0, n_processed)).values
+        # Find indices of processed timesteps
+        processed_indices = np.where(processed_mask)[0]
+        
+        # Check a sample (first few processed timesteps, memory efficient)
+        n_to_check = min(n_processed, 10)  # Check at most 10 timesteps
+        sample_indices = processed_indices[:n_to_check]
+        
+        print(f"  Checking first {n_to_check} processed timesteps...")
+        
+        # Check surface latents (one at a time for memory efficiency)
+        surf_values = []
+        for idx in sample_indices:
+            data = ds.surface_latents.isel(time=int(idx)).values
+            surf_values.append(data)
+        surface_data = np.stack(surf_values)
+        
         surf_has_nan = np.isnan(surface_data).any()
         surf_range = (np.nanmin(surface_data), np.nanmax(surface_data))
         surf_mean = np.nanmean(surface_data)
         surf_std = np.nanstd(surface_data)
         
-        print(f"  Surface latents (first {n_processed} timesteps):")
+        print(f"\n  Surface latents:")
         print(f"    Has NaN: {surf_has_nan}")
         print(f"    Range: [{surf_range[0]:.4f}, {surf_range[1]:.4f}]")
         print(f"    Mean: {surf_mean:.4f}, Std: {surf_std:.4f}")
         
-        # Check pressure latents
-        pressure_data = ds.pressure_latents.isel(time=slice(0, n_processed)).values
+        # Check pressure latents (one at a time for memory efficiency)
+        pres_values = []
+        for idx in sample_indices:
+            data = ds.pressure_latents.isel(time=int(idx)).values
+            pres_values.append(data)
+        pressure_data = np.stack(pres_values)
+        
         pres_has_nan = np.isnan(pressure_data).any()
         pres_range = (np.nanmin(pressure_data), np.nanmax(pressure_data))
         pres_mean = np.nanmean(pressure_data)
         pres_std = np.nanstd(pressure_data)
         
-        print(f"  Pressure latents (first {n_processed} timesteps):")
+        print(f"\n  Pressure latents:")
         print(f"    Has NaN: {pres_has_nan}")
         print(f"    Range: [{pres_range[0]:.4f}, {pres_range[1]:.4f}]")
         print(f"    Mean: {pres_mean:.4f}, Std: {pres_std:.4f}")
@@ -82,7 +101,7 @@ def main():
         print(f"\n  Per-level pressure latent stats:")
         for i, level in enumerate(ds.level.values):
             level_data = pressure_data[:, i, :, :, :]
-            print(f"    Level {level:4d} hPa: mean={np.nanmean(level_data):.4f}, std={np.nanstd(level_data):.4f}")
+            print(f"    Level {int(level):4d} hPa: mean={np.nanmean(level_data):.4f}, std={np.nanstd(level_data):.4f}")
     
     # 6. Example access patterns
     print("\n🔍 EXAMPLE ACCESS:")

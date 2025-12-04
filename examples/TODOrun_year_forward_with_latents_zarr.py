@@ -305,6 +305,9 @@ def initialize_zarr_store(
     print(f"  Surface latents: (time={n_timesteps}, lat={s_rows}, lon={s_cols}, channels={s_channels})")
     print(f"  Pressure latents: (time={n_timesteps}, level={p_levels}, lat={p_rows}, lon={p_cols}, channels={p_channels})")
     
+    # Consolidate metadata for fast xarray reads
+    zarr.consolidate_metadata(str(zarr_path))
+    
     return store
 
 
