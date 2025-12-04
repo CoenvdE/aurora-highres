@@ -12,9 +12,7 @@ Output format:
     ├── time                # (n_timesteps,) datetime64
     ├── 2t                  # (time, lat, lon) - 2m temperature
     ├── msl                 # (time, lat, lon) - mean sea level pressure
-    ├── z_surface           # (time, lat, lon) - surface geopotential
     ├── t                   # (time, level, lat, lon) - temperature
-    ├── q                   # (time, level, lat, lon) - specific humidity
     └── z                   # (time, level, lat, lon) - geopotential
 """
 
@@ -220,8 +218,8 @@ def main() -> None:
         raise FileNotFoundError(f"HRES directory not found: {args.hres_dir}")
     
     # Surface and atmospheric variables
-    surf_vars = ["2t", "msl", "z"]
-    atmos_vars = ["q", "t", "z"]
+    surf_vars = ["2t", "msl"] 
+    atmos_vars = ["t", "z"]   
     
     # Get all timesteps
     all_timesteps = list(iterate_timesteps(args.start_year, args.end_year))
@@ -309,9 +307,7 @@ def main() -> None:
     for var in surf_vars:
         stacked = xr.concat(surface_data[var], dim="time")
         stacked = stacked.assign_coords(time=time_coord)
-        # Rename surface z to avoid conflict
-        var_name = "z_surface" if var == "z" else var
-        data_vars[var_name] = stacked
+        data_vars[var] = stacked
     
     # Stack atmospheric variables
     for var in atmos_vars:
@@ -328,6 +324,7 @@ def main() -> None:
     ds.attrs["region_lon_max"] = args.lon_max
     ds.attrs["created"] = datetime.now().isoformat()
     ds.attrs["source"] = "ECMWF HRES"
+    ds.attrs["description"] = "HRES analysis data for super-resolution training"
     
     print(f"Dataset: {ds}")
     

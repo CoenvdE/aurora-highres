@@ -140,28 +140,35 @@ def load_latents_from_zarr(
     
     # Load latents based on mode
     if mode == "surface":
-        # Shape: (rows, cols, channels)
+        # Shape: (lat, lon, channels)
         latent_data = ds.surface_latents.isel(time=idx).values
-        # Reshape to (1, rows*cols, channels) for decoder
+        # Reshape to (1, lat*lon, channels) for decoder
         rows, cols, channels = latent_data.shape
         latents = latent_data.reshape(1, rows * cols, channels)
     else:  # atmos
-        # Shape: (levels, rows, cols, channels)
+        # Shape: (level, lat, lon, channels)
         latent_data = ds.pressure_latents.isel(time=idx).values
-        # Reshape to (1, levels, rows*cols, channels) for decoder
+        # Reshape to (1, level, lat*lon, channels) for decoder
         levels, rows, cols, channels = latent_data.shape
         latents = latent_data.reshape(1, levels, rows * cols, channels)
     
     latents_tensor = torch.from_numpy(latents).float()
     
-    # Get metadata from Zarr attributes
+    # Get metadata - support both old (lat_min) and new (region_lat_min) naming
     patch_rows = store.attrs["surface_shape"][0]
     patch_cols = store.attrs["surface_shape"][1]
     
-    region_bounds = {
-        "lat": (store.attrs["lat_min"], store.attrs["lat_max"]),
-        "lon": (store.attrs["lon_min"], store.attrs["lon_max"]),
-    }
+    # Try new naming first, fall back to old
+    if "region_lat_min" in store.attrs:
+        region_bounds = {
+            "lat": (store.attrs["region_lat_min"], store.attrs["region_lat_max"]),
+            "lon": (store.attrs["region_lon_min"], store.attrs["region_lon_max"]),
+        }
+    else:
+        region_bounds = {
+            "lat": (store.attrs["lat_min"], store.attrs["lat_max"]),
+            "lon": (store.attrs["lon_min"], store.attrs["lon_max"]),
+        }
     
     extent = _bounds_to_extent(region_bounds)
     atmos_levels = torch.tensor(store.attrs["atmos_levels"])

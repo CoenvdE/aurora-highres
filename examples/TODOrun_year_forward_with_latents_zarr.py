@@ -140,9 +140,80 @@ def initialize_zarr_store(
     atmos_levels: tuple,
     timesteps: list[datetime],
 ) -> zarr.Group:
-    """Initialize Zarr store with proper structure for latents storage."""
+    """Initialize Zarr store with proper structure for latents storage.
+    
+    Aurora produces two types of latents:
+    - surface_latents: (time, lat, lon, channels) - 1 "level" for surface variables
+    - pressure_latents: (time, level, lat, lon, channels) - 13 pressure levels
+    
+    These are stored SEPARATELY (not stacked) because they have different shapes.
+    The surface latents correspond to surface variables (2t, 10u, 10v, msl).
+    The pressure latents correspond to atmospheric variables (z, u, v, t, q) at 13 levels.
+    
+    Coordinates:
+        lat: 1D array of patch center latitudes
+        lon: 1D array of patch center longitudes
+        level: 1D array of pressure levels [50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000]
+        
+    Bounds (for each patch):
+        lat_bounds: (n_lat, 2) with [lat_min, lat_max] for each row
+        lon_bounds: (n_lon, 2) with [lon_min, lon_max] for each col
+    
+    Usage:
+        ds.surface_latents.sel(lat=55.0, lon=10.0, method="nearest")
+        ds.lat.values  # patch center latitudes
+        ds.lat_bounds.values  # [[lat_min, lat_max], ...] for each lat
+    """
     
     store = zarr.open(str(zarr_path), mode="w")
+    
+    # Extract patch center coordinates as 1D arrays
+    # patch_grid["centres"] is (n_patches, 2) with [lat, lon]
+    s_rows, s_cols, s_channels = surface_shape
+    centres_2d = patch_grid["centres"].numpy().reshape(s_rows, s_cols, 2)
+    lat_centres = centres_2d[:, 0, 0]  # Take first column's lat values
+    lon_centres = centres_2d[0, :, 1]  # Take first row's lon values
+    
+    # Create lat coordinate (patch center latitudes)
+    store.create_dataset(
+        "lat",
+        data=lat_centres.astype(np.float32),
+        dtype="float32",
+    )
+    
+    # Create lon coordinate (patch center longitudes)
+    store.create_dataset(
+        "lon",
+        data=lon_centres.astype(np.float32),
+        dtype="float32",
+    )
+    
+    # Create lat/lon bounds for each patch
+    # Estimate bounds from spacing between centers
+    lat_spacing = np.abs(np.diff(lat_centres).mean()) if len(lat_centres) > 1 else 4.0
+    lon_spacing = np.abs(np.diff(lon_centres).mean()) if len(lon_centres) > 1 else 4.0
+    
+    lat_bounds = np.stack([
+        lat_centres - lat_spacing / 2,
+        lat_centres + lat_spacing / 2
+    ], axis=-1).astype(np.float32)
+    
+    lon_bounds = np.stack([
+        lon_centres - lon_spacing / 2,
+        lon_centres + lon_spacing / 2
+    ], axis=-1).astype(np.float32)
+    
+    store.create_dataset(
+        "lat_bounds",
+        data=lat_bounds,
+        dtype="float32",
+    )
+    
+    store.create_dataset(
+        "lon_bounds",
+        data=lon_bounds,
+        dtype="float32",
+    )
     
     # Create time coordinate (as int64 nanoseconds for xarray compatibility)
     time_values = np.array([np.datetime64(t) for t in timesteps], dtype="datetime64[ns]")
@@ -153,9 +224,16 @@ def initialize_zarr_store(
         chunks=(n_timesteps,),  # Single chunk for the time coordinate
     )
     
-    # Surface latents: (time, patch_rows, patch_cols, channels)
-    # Shape: 1 level only
-    s_rows, s_cols, s_channels = surface_shape
+    # Create levels coordinate for pressure data
+    # Aurora uses 13 levels: 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000 hPa
+    store.create_dataset(
+        "level",
+        data=np.array(list(atmos_levels), dtype=np.int32),
+        dtype="int32",
+    )
+    
+    # Surface latents: (time, lat, lon, channels) - SEPARATE from pressure
+    # This contains latents for surface-level variables (2t, 10u, 10v, msl)
     store.create_dataset(
         "surface_latents",
         shape=(n_timesteps, s_rows, s_cols, s_channels),
@@ -164,8 +242,8 @@ def initialize_zarr_store(
         fill_value=np.nan,
     )
     
-    # Pressure latents: (time, levels, patch_rows, patch_cols, channels)
-    # 13 levels in Aurora
+    # Pressure latents: (time, level, lat, lon, channels) - 13 pressure levels
+    # This contains latents for atmospheric variables (z, u, v, t, q) at each pressure level
     p_levels, p_rows, p_cols, p_channels = pressure_shape
     store.create_dataset(
         "pressure_latents",
@@ -183,12 +261,12 @@ def initialize_zarr_store(
         fill_value=False,
     )
     
-    # Store metadata as attributes
+    # Store metadata as attributes (consistent naming with HRES zarr)
     store.attrs["region_bounds"] = json.dumps(region_bounds)
-    store.attrs["lat_min"] = region_bounds["lat"][0]
-    store.attrs["lat_max"] = region_bounds["lat"][1]
-    store.attrs["lon_min"] = region_bounds["lon"][0]
-    store.attrs["lon_max"] = region_bounds["lon"][1]
+    store.attrs["region_lat_min"] = region_bounds["lat"][0]
+    store.attrs["region_lat_max"] = region_bounds["lat"][1]
+    store.attrs["region_lon_min"] = region_bounds["lon"][0]
+    store.attrs["region_lon_max"] = region_bounds["lon"][1]
     store.attrs["atmos_levels"] = list(atmos_levels)
     store.attrs["n_timesteps"] = n_timesteps
     store.attrs["surface_shape"] = list(surface_shape)
@@ -196,23 +274,19 @@ def initialize_zarr_store(
     store.attrs["start_time"] = str(timesteps[0])
     store.attrs["end_time"] = str(timesteps[-1])
     
-    # Store patch grid info
+    # Store patch grid info for reference
     store.attrs["patch_row_start"] = int(patch_grid["row_start"])
     store.attrs["patch_row_end"] = int(patch_grid["row_end"])
     store.attrs["patch_col_start"] = int(patch_grid["col_start"])
     store.attrs["patch_col_end"] = int(patch_grid["col_end"])
     store.attrs["patch_shape"] = list(patch_grid["patch_shape"])
     
-    # Store patch centres for the region
-    store.create_dataset(
-        "patch_centres",
-        data=patch_grid["centres"].numpy(),
-        dtype="float32",
-    )
-    
     print(f"✓ Initialized Zarr store at {zarr_path}")
-    print(f"  Surface latents shape: (time={n_timesteps}, rows={s_rows}, cols={s_cols}, channels={s_channels})")
-    print(f"  Pressure latents shape: (time={n_timesteps}, levels={p_levels}, rows={p_rows}, cols={p_cols}, channels={p_channels})")
+    print(f"  Lat centers: {len(lat_centres)} values from {lat_centres[0]:.2f} to {lat_centres[-1]:.2f}")
+    print(f"  Lon centers: {len(lon_centres)} values from {lon_centres[0]:.2f} to {lon_centres[-1]:.2f}")
+    print(f"  Levels: {list(atmos_levels)}")
+    print(f"  Surface latents: (time={n_timesteps}, lat={s_rows}, lon={s_cols}, channels={s_channels})")
+    print(f"  Pressure latents: (time={n_timesteps}, level={p_levels}, lat={p_rows}, lon={p_cols}, channels={p_channels})")
     
     return store
 
@@ -490,18 +564,27 @@ Example usage with xarray:
     import xarray as xr
     ds = xr.open_zarr("{output_zarr}")
     
+    # Access patch center coordinates
+    lat_centres = ds.lat.values  # 1D array of patch center latitudes
+    lon_centres = ds.lon.values  # 1D array of patch center longitudes
+    levels = ds.level.values     # Pressure levels [50, 100, ..., 1000]
+    
     # Get first timestep
-    surface = ds.surface_latents.isel(time=0).values
-    pressure = ds.pressure_latents.isel(time=0).values
+    surface = ds.surface_latents.isel(time=0).values  # (lat, lon, channels)
+    pressure = ds.pressure_latents.isel(time=0).values  # (level, lat, lon, channels)
     
     # Get by datetime
     surface = ds.surface_latents.sel(time="2018-01-01T00:00:00").values
+    
+    # Get by coordinate (nearest neighbor)
+    surface = ds.surface_latents.sel(lat=55.0, lon=10.0, method="nearest")
     
     # DataLoader usage
     n_samples = len(ds.time)
     for idx in range(n_samples):
         surface = ds.surface_latents.isel(time=idx).values
         pressure = ds.pressure_latents.isel(time=idx).values
+        # lat_centres and lon_centres give you the position of each latent
 """)
 
 
