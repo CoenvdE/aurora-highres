@@ -175,18 +175,20 @@ def initialize_zarr_store(
     lon_centres = centres_2d[0, :, 1]  # Take first row's lon values
     
     # Create lat coordinate (patch center latitudes)
-    store.create_dataset(
+    lat_arr = store.create_dataset(
         "lat",
         data=lat_centres.astype(np.float32),
         dtype="float32",
     )
+    lat_arr.attrs["_ARRAY_DIMENSIONS"] = ["lat"]
     
     # Create lon coordinate (patch center longitudes)
-    store.create_dataset(
+    lon_arr = store.create_dataset(
         "lon",
         data=lon_centres.astype(np.float32),
         dtype="float32",
     )
+    lon_arr.attrs["_ARRAY_DIMENSIONS"] = ["lon"]
     
     # Create lat/lon bounds for each patch
     # Estimate bounds from spacing between centers
@@ -203,63 +205,78 @@ def initialize_zarr_store(
         lon_centres + lon_spacing / 2
     ], axis=-1).astype(np.float32)
     
-    store.create_dataset(
+    lat_bounds_arr = store.create_dataset(
         "lat_bounds",
         data=lat_bounds,
         dtype="float32",
     )
+    lat_bounds_arr.attrs["_ARRAY_DIMENSIONS"] = ["lat", "bounds"]
     
-    store.create_dataset(
+    lon_bounds_arr = store.create_dataset(
         "lon_bounds",
         data=lon_bounds,
         dtype="float32",
     )
+    lon_bounds_arr.attrs["_ARRAY_DIMENSIONS"] = ["lon", "bounds"]
     
     # Create time coordinate (as int64 nanoseconds for xarray compatibility)
     time_values = np.array([np.datetime64(t) for t in timesteps], dtype="datetime64[ns]")
-    store.create_dataset(
+    time_arr = store.create_dataset(
         "time",
         data=time_values,
         dtype="datetime64[ns]",
         chunks=(n_timesteps,),  # Single chunk for the time coordinate
     )
+    time_arr.attrs["_ARRAY_DIMENSIONS"] = ["time"]
     
     # Create levels coordinate for pressure data
     # Aurora uses 13 levels: 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000 hPa
-    store.create_dataset(
+    level_arr = store.create_dataset(
         "level",
         data=np.array(list(atmos_levels), dtype=np.int32),
         dtype="int32",
     )
+    level_arr.attrs["_ARRAY_DIMENSIONS"] = ["level"]
+    
+    # Create channels coordinate
+    channel_arr = store.create_dataset(
+        "channel",
+        data=np.arange(s_channels, dtype=np.int32),
+        dtype="int32",
+    )
+    channel_arr.attrs["_ARRAY_DIMENSIONS"] = ["channel"]
     
     # Surface latents: (time, lat, lon, channels) - SEPARATE from pressure
     # This contains latents for surface-level variables (2t, 10u, 10v, msl)
-    store.create_dataset(
+    surface_arr = store.create_dataset(
         "surface_latents",
         shape=(n_timesteps, s_rows, s_cols, s_channels),
         chunks=(1, s_rows, s_cols, s_channels),  # 1 timestep per chunk
         dtype="float32",
         fill_value=np.nan,
     )
+    surface_arr.attrs["_ARRAY_DIMENSIONS"] = ["time", "lat", "lon", "channel"]
     
     # Pressure latents: (time, level, lat, lon, channels) - 13 pressure levels
     # This contains latents for atmospheric variables (z, u, v, t, q) at each pressure level
     p_levels, p_rows, p_cols, p_channels = pressure_shape
-    store.create_dataset(
+    pressure_arr = store.create_dataset(
         "pressure_latents",
         shape=(n_timesteps, p_levels, p_rows, p_cols, p_channels),
         chunks=(1, p_levels, p_rows, p_cols, p_channels),  # 1 timestep per chunk
         dtype="float32",
         fill_value=np.nan,
     )
+    pressure_arr.attrs["_ARRAY_DIMENSIONS"] = ["time", "level", "lat", "lon", "channel"]
     
     # Create tracking array for which timesteps are processed
-    store.create_dataset(
+    processed_arr = store.create_dataset(
         "processed",
         shape=(n_timesteps,),
         dtype=bool,
         fill_value=False,
     )
+    processed_arr.attrs["_ARRAY_DIMENSIONS"] = ["time"]
     
     # Store metadata as attributes (consistent naming with HRES zarr)
     store.attrs["region_bounds"] = json.dumps(region_bounds)
