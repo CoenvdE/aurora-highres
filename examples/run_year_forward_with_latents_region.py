@@ -19,7 +19,10 @@ import torch
 import xarray as xr
 
 from examples.extract_latents import register_latent_hooks
-from examples.init_exploring.load_era_batch_snellius import load_batch_from_zarr
+from examples.init_exploring.load_era_batch_flexible import (
+    load_batch_for_timestep,
+    iterate_timesteps,
+)
 from examples.init_exploring.utils import (
     compute_patch_grid,
     ensure_static_dataset,
@@ -110,16 +113,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def iterate_days(year: int):
-    """Generate all days in a given year."""
-    current = datetime(year, 1, 1)
-    end = datetime(year, 12, 31)
-    delta = timedelta(days=1)
-    while current <= end:
-        yield current
-        current += delta
-
-
 def latent_exists(latents_h5: Path, label: str) -> bool:
     """Check if a specific timestamp's latents already exist in the H5 file."""
     if not latents_h5.exists():
@@ -187,7 +180,7 @@ def main() -> None:
     latents_dir = work_dir / "latents_dataset"
     latents_dir.mkdir(parents=True, exist_ok=True)
 
-    static_path = ensure_static_dataset(work_dir) #TODO: check this
+    static_path = ensure_static_dataset(work_dir)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -231,6 +224,11 @@ def main() -> None:
         failed_samples = 0
         skipped_samples = 0
 
+        # Create start and end datetimes for the full range
+        start_date = datetime(args.start_year, 1, 1)
+        end_date = datetime(args.end_year, 12, 31)
+
+        # Group timesteps by year for organized H5 file storage
         for year in range(args.start_year, args.end_year + 1):
             print(f"\n{'='*60}")
             print(f"Processing year {year}")
@@ -241,24 +239,27 @@ def main() -> None:
 
             latents_h5 = year_latents_dir / "pressure_surface_latents_region.h5"
 
-            for day in iterate_days(year):
-                date_str = day.strftime("%Y-%m-%d")
-                expected_time = datetime(day.year, day.month, day.day, 12)
-                expected_label = expected_time.strftime("%Y-%m-%dT%H-%M-%S")
+            # Get all timesteps for this year
+            year_start = datetime(year, 1, 1)
+            year_end = datetime(year, 12, 31)
+            
+            for target_time in iterate_timesteps(year_start, year_end):
+                timestamp_label = target_time.strftime("%Y-%m-%dT%H-%M-%S")
 
                 # Skip if already processed
-                if args.skip_existing and latent_exists(latents_h5, expected_label):
-                    print(f"  ⊘ Skipping {date_str} (already exists)")
+                if args.skip_existing and latent_exists(latents_h5, timestamp_label):
+                    print(f"  ⊘ Skipping {timestamp_label} (already exists)")
                     skipped_samples += 1
                     continue
 
-                print(f"  ➤ Processing {date_str}...")
+                print(f"  ➤ Processing {target_time.strftime('%Y-%m-%d %H:%M')}...")
                 
                 try:
-                    batch = load_batch_from_zarr(
+                    # Load batch for this specific timestep
+                    batch = load_batch_for_timestep(
+                        target_time=target_time,
                         zarr_path=args.zarr_path,
                         static_path=str(static_path),
-                        date_str=date_str, #TODO: fix that it loads 2 dates before this and it predicts this date
                         dataset=dataset,
                         static_dataset=static_dataset,
                     )
@@ -287,8 +288,7 @@ def main() -> None:
                     captures.clear()
                     continue
 
-                actual_time = prediction.metadata.time[0]
-                timestamp_label = actual_time.strftime("%Y-%m-%dT%H-%M-%S") #TODO: look at best way to save this to index later with dataset
+                actual_time = prediction.metadata.time[0] #TODO: look at best way to save this to index later with dataset
 
                 # Extract captured latents
                 deagg_latents = captures.get("decoder.deaggregated_atmospheric_latents")
@@ -426,9 +426,10 @@ if __name__ == "__main__":
 
 # Usage examples:
 # 
-# Process years 2018-2020 with default region (Europe):
+# Process ALL timesteps (00, 06, 12, 18 UTC) for years 2018-2020 with default region (Europe):
 #   python examples/run_year_forward_with_latents_region.py \
 #       --start-year 2018 --end-year 2020
+#   This will process 4 timesteps/day × 365 days/year × 3 years = ~4,380 timesteps
 #
 # Process with custom region (North America):
 #   python examples/run_year_forward_with_latents_region.py \
@@ -436,7 +437,8 @@ if __name__ == "__main__":
 #       --lat-min 25.0 --lat-max 50.0 \
 #       --lon-min -130.0 --lon-max -60.0
 #
-# Process with limited samples for testing:
+# Process with limited samples for testing (e.g., first 10 timesteps):
 #   python examples/run_year_forward_with_latents_region.py \
 #       --start-year 2018 --end-year 2018 \
-#       --max-samples 5 --skip-existing
+#       --max-samples 10 --skip-existing
+

@@ -24,7 +24,7 @@ DEFAULT_STATIC_REPO = "microsoft/aurora"
 DEFAULT_STATIC_FILENAME = "aurora-0.25-static.pickle"
 DEFAULT_STATIC_CANDIDATES: tuple[Path, ...] = (
     Path("examples/downloads/era5/static.nc"),
-    Path("examples/downloads/hres/static.nc"),
+    # Path("examples/downloads/hres/static.nc"),
 )
 
 
@@ -48,6 +48,7 @@ def ensure_static_dataset(
     if static_path.exists():
         static_path.unlink()
 
+    # last resort: download pickle and convert to netcdf
     pickle_path = hf_hub_download(
         repo_id=repo_id,
         filename=filename,
@@ -69,7 +70,11 @@ def ensure_static_dataset(
             "longitude": ("longitude", longitudes),
         },
     )
-    dataset.to_netcdf(static_path, engine="scipy")
+    try:
+        dataset.to_netcdf(static_path, engine="netcdf4")
+    except Exception:
+        print("Failed to save static dataset with netcdf4 engine, falling back to scipy")
+        dataset.to_netcdf(static_path, engine="scipy")
     return static_path
 
 

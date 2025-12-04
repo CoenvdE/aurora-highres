@@ -25,11 +25,11 @@ VAR_NUMS: Dict[str, str] = {
     # "10u": "165",  # 10m u-component of wind
     # "10v": "166",  # 10m v-component of wind
     "msl": "151",  # Mean sea level pressure
-    # "t": "130",  # Temperature
+    "t": "130",  # Temperature (atmospheric)
     # "u": "131",  # u-component of wind (atmospheric)
     # "v": "132",  # v-component of wind (atmospheric)
     "q": "133",  # Specific humidity (atmospheric)
-    # "z": "129",  # Geopotential
+    "z": "129",  # Geopotential
     # "slt": "043",  # Soil type
     # "lsm": "172",  # Land-sea mask
 }
@@ -37,18 +37,12 @@ VAR_NUMS: Dict[str, str] = {
 SURF_VARS = [
     "2t",  # 2m temperature (t2m)
     "msl",  # Mean sea level pressure
-    # "10u",
-    # "10v",
-    # "z",
-    # "slt",
-    # "lsm",
+    "z",  # Surface geopotential (orography)
 ]
 ATMOS_VARS = [
     "q",  # Specific humidity
-    # "z",
-    # "t",
-    # "u",
-    # "v",
+    "t",  # Temperature on pressure levels
+    "z",  # Geopotential on pressure levels
 ]
 ATMOS_HOURS = [0, 6, 12, 18]
 
