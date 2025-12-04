@@ -458,20 +458,20 @@ def main() -> None:
                 captures.clear()
                 continue
 
+            # Calculate patch dimensions (needed for reshape below)
+            patch_rows = row_end - row_start + 1
+            patch_cols = col_end - col_start + 1
+
             # Initialize Zarr on first successful sample
             if zarr_store is None:
                 # Get shapes from first sample
-                # Surface: (1, patches, channels) -> reshape to (rows, cols, channels)
-                patch_rows = row_end - row_start + 1
-                patch_cols = col_end - col_start + 1
-                
-                # surf_region_latents shape: (1, n_patches, channels) where n_patches = rows*cols
+                # surf_region_latents shape: (1, n_patches, levels=1, channels)
                 surf_np = surf_region_latents.numpy()
                 s_channels = surf_np.shape[-1]
                 
-                # atmos_region_latents shape: (1, levels, n_patches, channels)
+                # atmos_region_latents shape: (1, n_patches, levels, channels)
                 atmos_np = atmos_region_latents.numpy()
-                p_levels = atmos_np.shape[1]
+                p_levels = atmos_np.shape[2]  # levels is dim 2
                 p_channels = atmos_np.shape[-1]
                 
                 # Get patch centres for the region
