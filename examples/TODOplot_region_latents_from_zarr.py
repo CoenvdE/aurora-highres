@@ -140,17 +140,19 @@ def load_latents_from_zarr(
     
     # Load latents based on mode
     if mode == "surface":
-        # Shape: (lat, lon, channels)
+        # Zarr shape: (lat, lon, channels)
         latent_data = ds.surface_latents.isel(time=idx).values
-        # Reshape to (1, lat*lon, channels) for decoder
         rows, cols, channels = latent_data.shape
-        latents = latent_data.reshape(1, rows * cols, channels)
+        # Reshape to (1, patches, 1, channels) - decoder expects levels dim
+        latents = latent_data.reshape(1, rows * cols, 1, channels)
     else:  # atmos
-        # Shape: (level, lat, lon, channels)
+        # Zarr shape: (level, lat, lon, channels)
         latent_data = ds.pressure_latents.isel(time=idx).values
-        # Reshape to (1, level, lat*lon, channels) for decoder
-        levels, rows, cols, channels = latent_data.shape
-        latents = latent_data.reshape(1, levels, rows * cols, channels)
+        n_levels, rows, cols, channels = latent_data.shape
+        # Reshape to (lat, lon, level, channel) then to (1, patches, levels, channels)
+        # This matches select_region_latents output: (batch, patches, levels, embed_dim)
+        latent_data = latent_data.transpose(1, 2, 0, 3)  # (lat, lon, level, channel)
+        latents = latent_data.reshape(1, rows * cols, n_levels, channels)
     
     latents_tensor = torch.from_numpy(latents).float()
     
