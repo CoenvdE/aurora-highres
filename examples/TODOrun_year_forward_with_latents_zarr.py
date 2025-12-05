@@ -231,17 +231,21 @@ def initialize_zarr_store(
     
     # Create levels coordinate for pressure data
     # Aurora uses 13 levels: 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000 hPa
+    # Explicitly cast to int to avoid float64 from Aurora metadata
+    level_data = np.array([int(lev) for lev in atmos_levels], dtype=np.int32)
     level_arr = store.create_dataset(
         "level",
-        data=np.array(list(atmos_levels), dtype=np.int32),
+        data=level_data,
         dtype="int32",
     )
     level_arr.attrs["_ARRAY_DIMENSIONS"] = ["level"]
     
-    # Create channels coordinate
+    # Create channels coordinate - ensure no NaNs and proper int32 type
+    channel_data = np.arange(s_channels, dtype=np.int32)
+    assert not np.isnan(channel_data.astype(float)).any(), "Channel data contains NaNs!"
     channel_arr = store.create_dataset(
         "channel",
-        data=np.arange(s_channels, dtype=np.int32),
+        data=channel_data,
         dtype="int32",
     )
     channel_arr.attrs["_ARRAY_DIMENSIONS"] = ["channel"]
