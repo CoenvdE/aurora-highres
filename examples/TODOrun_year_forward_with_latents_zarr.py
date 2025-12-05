@@ -237,16 +237,19 @@ def initialize_zarr_store(
         "level",
         data=level_data,
         dtype="int32",
+        fill_value=None,  # Explicitly no fill value
     )
     level_arr.attrs["_ARRAY_DIMENSIONS"] = ["level"]
     
     # Create channels coordinate - ensure no NaNs and proper int32 type
+    # IMPORTANT: fill_value=None prevents xarray from treating 0 as NaN
     channel_data = np.arange(s_channels, dtype=np.int32)
     assert not np.isnan(channel_data.astype(float)).any(), "Channel data contains NaNs!"
     channel_arr = store.create_dataset(
         "channel",
         data=channel_data,
         dtype="int32",
+        fill_value=None,  # Explicitly no fill value - prevents 0→NaN conversion
     )
     channel_arr.attrs["_ARRAY_DIMENSIONS"] = ["channel"]
     
