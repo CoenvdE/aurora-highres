@@ -380,11 +380,18 @@ def main() -> None:
                 region_field = region_field.squeeze(0)
         color_limits = _compute_color_limits(region_field.detach().cpu())
 
+        # Convert extent back to region_bounds format for consistent box drawing
+        # extent is (lon_min, lon_max, lat_min, lat_max)
+        extent_as_bounds = {
+            "lat": (extent[2], extent[3]),
+            "lon": (extent[0], extent[1]),
+        }
+
         # Plot
         _plot_region_with_location(
             region_field[None, None, ...].detach().cpu(),
             extent,
-            region_bounds,
+            extent_as_bounds,  # Use extent-based bounds for consistent alignment
             mode_label,
             args.var_name,
             actual_time,
