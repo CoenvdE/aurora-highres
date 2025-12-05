@@ -132,16 +132,23 @@ def crop_to_region(
     lon_min: float,
     lon_max: float,
 ) -> xr.DataArray:
-    """Crop data array to the specified region."""
+    """Crop data array to the specified region.
+    
+    Output longitudes are normalized to -180° to 180° range for consistency
+    with Aurora latents and proper coastline alignment.
+    """
     # Handle different coordinate names
     lat_coord = "latitude" if "latitude" in da.coords else "lat"
     lon_coord = "longitude" if "longitude" in da.coords else "lon"
     
-    # Handle longitude wrapping (-30 to 50 needs conversion from 0-360 or vice versa)
+    # Handle longitude wrapping (-30 to 50 needs conversion from 0-360)
     lons = da[lon_coord].values
-    if lon_min < 0 and lons.min() >= 0:
-        # Convert negative lons to 0-360
-        lon_min_adj = lon_min + 360
+    source_is_0_360 = lons.min() >= 0 and lons.max() > 180
+    
+    if source_is_0_360 and lon_min < 0:
+        # Source is 0-360, target region has negative lons (e.g., -30 to 50)
+        # Convert target bounds to 0-360 for slicing
+        lon_min_adj = lon_min + 360  # -30 -> 330
         lon_max_adj = lon_max if lon_max >= 0 else lon_max + 360
     else:
         lon_min_adj, lon_max_adj = lon_min, lon_max
@@ -156,7 +163,8 @@ def crop_to_region(
     
     # Handle wrapping around 0 degrees longitude
     if lon_min_adj > lon_max_adj:
-        # Need to concatenate two slices
+        # Region crosses prime meridian, need to concatenate two slices
+        # e.g., lon_min_adj=330, lon_max_adj=50 -> [330:360] + [0:50]
         da1 = da.sel({lon_coord: slice(lon_min_adj, 360)})
         da2 = da.sel({lon_coord: slice(0, lon_max_adj)})
         da_cropped = xr.concat([da1, da2], dim=lon_coord)
@@ -165,6 +173,18 @@ def crop_to_region(
             lat_coord: lat_slice,
             lon_coord: slice(lon_min_adj, lon_max_adj),
         })
+    
+    # Normalize longitudes to -180° to 180° range
+    # This ensures monotonic coordinates and proper alignment with coastlines
+    new_lons = da_cropped[lon_coord].values.copy()
+    new_lons = np.where(new_lons > 180, new_lons - 360, new_lons)
+    
+    # Sort by longitude to ensure monotonic coordinates
+    sort_idx = np.argsort(new_lons)
+    da_cropped = da_cropped.isel({lon_coord: sort_idx})
+    
+    # Assign the normalized longitude values
+    da_cropped = da_cropped.assign_coords({lon_coord: new_lons[sort_idx]})
     
     return da_cropped
 
