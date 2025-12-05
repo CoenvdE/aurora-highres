@@ -165,8 +165,9 @@ def crop_to_region(
     if lon_min_adj > lon_max_adj:
         # Region crosses prime meridian, need to concatenate two slices
         # e.g., lon_min_adj=330, lon_max_adj=50 -> [330:360] + [0:50]
-        da1 = da.sel({lon_coord: slice(lon_min_adj, 360)})
-        da2 = da.sel({lon_coord: slice(0, lon_max_adj)})
+        # IMPORTANT: Apply lat_slice to both segments before concatenation
+        da1 = da.sel({lat_coord: lat_slice, lon_coord: slice(lon_min_adj, 360)})
+        da2 = da.sel({lat_coord: lat_slice, lon_coord: slice(0, lon_max_adj)})
         da_cropped = xr.concat([da1, da2], dim=lon_coord)
     else:
         da_cropped = da.sel({
