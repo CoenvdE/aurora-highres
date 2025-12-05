@@ -115,12 +115,26 @@ def plot_atmospheric_variable(
 
 def plot_hres_overview(ds: xr.Dataset, time_idx: int, output_dir: Path) -> None:
     """Create overview plot of all HRES variables."""
-    # Get extent from dataset attributes
-    lat_min = ds.attrs.get("region_lat_min", 30.0)
-    lat_max = ds.attrs.get("region_lat_max", 70.0)
-    lon_min = ds.attrs.get("region_lon_min", -30.0)
-    lon_max = ds.attrs.get("region_lon_max", 50.0)
-    extent = (lon_min, lon_max, lat_min, lat_max)
+    # Get ACTUAL extent from data coordinates (not attrs!)
+    # This ensures correct alignment with coastlines
+    lat_name = "latitude" if "latitude" in ds.coords else "lat"
+    lon_name = "longitude" if "longitude" in ds.coords else "lon"
+    
+    lat = ds[lat_name].values
+    lon = ds[lon_name].values
+    
+    # Compute extent from actual data bounds
+    # Extent for imshow: (lon_min, lon_max, lat_min, lat_max)
+    # Account for grid cell size (half cell on each edge)
+    lat_res = abs(lat[1] - lat[0]) if len(lat) > 1 else 0.1
+    lon_res = abs(lon[1] - lon[0]) if len(lon) > 1 else 0.1
+    
+    extent = (
+        float(lon.min() - lon_res/2),
+        float(lon.max() + lon_res/2),
+        float(lat.min() - lat_res/2),
+        float(lat.max() + lat_res/2),
+    )
     
     # Get timestamp
     timestamp = ds.time.values[time_idx]
@@ -156,7 +170,7 @@ def plot_hres_overview(ds: xr.Dataset, time_idx: int, output_dir: Path) -> None:
         axes[1, 0].set_visible(False)
         axes[1, 1].set_visible(False)
     
-    fig.suptitle(f"HRES Data - {timestamp_str}\nRegion: [{lat_min}°, {lat_max}°]N × [{lon_min}°, {lon_max}°]E", fontsize=14)
+    fig.suptitle(f"HRES Data - {timestamp_str}\nRegion: [{extent[2]:.1f}°, {extent[3]:.1f}°]N × [{extent[0]:.1f}°, {extent[1]:.1f}°]E", fontsize=14)
     plt.tight_layout()
     
     output_path = output_dir / f"hres_overview_t{time_idx}_{timestamp_str.replace(' ', '_').replace(':', '-')}.png"
