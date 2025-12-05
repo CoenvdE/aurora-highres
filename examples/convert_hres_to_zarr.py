@@ -31,6 +31,9 @@ DEFAULT_LAT_MAX = 70.0
 DEFAULT_LON_MIN = -30.0
 DEFAULT_LON_MAX = 50.0
 
+# Aurora uses 13 pressure levels (hPa) - filter HRES to match
+AURORA_LEVELS = [50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000]
+
 
 def iterate_timesteps(start_year: int, end_year: int) -> Iterator[datetime]:
     """Generate all 6-hourly timesteps for the year range."""
@@ -316,6 +319,9 @@ def main() -> None:
                 missing = True
                 break
             da_cropped = crop_to_region(da, args.lat_min, args.lat_max, args.lon_min, args.lon_max)
+            # Filter to Aurora's 13 pressure levels
+            level_dim = "isobaricInhPa" if "isobaricInhPa" in da_cropped.dims else "level"
+            da_cropped = da_cropped.sel({level_dim: AURORA_LEVELS})
             atmos_arrays[var] = da_cropped
         
         if missing:
