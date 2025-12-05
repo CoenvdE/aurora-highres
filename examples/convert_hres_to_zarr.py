@@ -12,8 +12,7 @@ Output format:
     ├── time                # (n_timesteps,) datetime64
     ├── 2t                  # (time, lat, lon) - 2m temperature
     ├── msl                 # (time, lat, lon) - mean sea level pressure
-    ├── t                   # (time, level, lat, lon) - temperature
-    └── z                   # (time, level, lat, lon) - geopotential
+    └── t                   # (time, level, lat, lon) - temperature
 """
 
 from __future__ import annotations
@@ -219,7 +218,7 @@ def main() -> None:
     
     # Surface and atmospheric variables
     surf_vars = ["2t", "msl"] 
-    atmos_vars = ["t", "z"]   
+    atmos_vars = ["t"]   
     
     # Get all timesteps
     all_timesteps = list(iterate_timesteps(args.start_year, args.end_year))

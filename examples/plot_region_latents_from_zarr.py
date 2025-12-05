@@ -15,7 +15,6 @@ from typing import Callable, Sequence
 import numpy as np
 import torch
 import xarray as xr
-import zarr
 
 from aurora.model.decoder import Perceiver3DDecoder
 from aurora.model.util import unpatchify
@@ -113,7 +112,6 @@ def load_latents_from_zarr(
                   atmos_levels, actual_time)
     """
     ds = xr.open_zarr(str(zarr_path))
-    store = zarr.open(str(zarr_path), mode="r")
     
     # Determine which timestep to load
     if time_idx is not None:
@@ -157,19 +155,19 @@ def load_latents_from_zarr(
     latents_tensor = torch.from_numpy(latents).float()
     
     # Get metadata
-    patch_rows = store.attrs["surface_shape"][0]
-    patch_cols = store.attrs["surface_shape"][1]
+    patch_rows = ds.attrs["surface_shape"][0]
+    patch_cols = ds.attrs["surface_shape"][1]
     
     # Get region bounds for the box on world map
-    if "region_lat_min" in store.attrs:
+    if "region_lat_min" in ds.attrs:
         region_bounds = {
-            "lat": (store.attrs["region_lat_min"], store.attrs["region_lat_max"]),
-            "lon": (store.attrs["region_lon_min"], store.attrs["region_lon_max"]),
+            "lat": (ds.attrs["region_lat_min"], ds.attrs["region_lat_max"]),
+            "lon": (ds.attrs["region_lon_min"], ds.attrs["region_lon_max"]),
         }
-    else:
+    else: #NOTE: to be save, because of previeous versions
         region_bounds = {
-            "lat": (store.attrs["lat_min"], store.attrs["lat_max"]),
-            "lon": (store.attrs["lon_min"], store.attrs["lon_max"]),
+            "lat": (ds.attrs["lat_min"], ds.attrs["lat_max"]),
+            "lon": (ds.attrs["lon_min"], ds.attrs["lon_max"]),
         }
     
     # Calculate extent from ACTUAL lat/lon coordinates (not region_bounds)
@@ -188,7 +186,7 @@ def load_latents_from_zarr(
         float(lat_bounds[0, 1]),   # First lat patch max (northern)
     )
     
-    atmos_levels = torch.tensor(store.attrs["atmos_levels"])
+    atmos_levels = torch.tensor(ds.attrs["atmos_levels"])
     
     ds.close()
     
@@ -266,10 +264,9 @@ def parse_args() -> argparse.Namespace:
 def list_available_timesteps(zarr_path: Path, n_show: int = 20) -> None:
     """Print available timesteps in the Zarr store."""
     ds = xr.open_zarr(str(zarr_path))
-    store = zarr.open(str(zarr_path), mode="r")
     
     n_total = len(ds.time)
-    processed = store["processed"][:]
+    processed = ds["processed"].values
     n_processed = int(np.sum(processed))
     
     print(f"\n{'='*60}")
@@ -324,7 +321,7 @@ def main() -> None:
             extent,
             atmos_levels,
             actual_time,
-        ) = load_latents_from_zarr(
+        ) = load_latents_from_zarr( 
             args.zarr_path,
             time_idx=current_idx,
             timestamp=args.timestamp if sample_offset == 0 else None,

@@ -29,7 +29,7 @@ VAR_NUMS: Dict[str, str] = {
     # "u": "131",  # u-component of wind (atmospheric)
     # "v": "132",  # v-component of wind (atmospheric)
     # "q": "133",  # Specific humidity (atmospheric)
-    "z": "129",  # Geopotential (atmospheric only)
+    # "z": "129",  # Geopotential (atmospheric only)
     # "slt": "043",  # Soil type
     # "lsm": "172",  # Land-sea mask
 }
@@ -42,7 +42,7 @@ SURF_VARS = [
 ATMOS_VARS = [
     # "q",  # Specific humidity - REMOVED
     "t",  # Temperature on pressure levels
-    "z",  # Geopotential on pressure levels
+    # "z",  # Geopotential on pressure levels
 ]
 ATMOS_HOURS = [0, 6, 12, 18]
 
