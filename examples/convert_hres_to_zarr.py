@@ -61,8 +61,12 @@ def find_grib_files(
     return file_path if file_path.exists() else None
 
 
-def load_grib_surface(file_path: Path, var_name: str) -> xr.DataArray | None:
-    """Load a surface variable from GRIB."""
+def load_grib_surface(file_path: Path, var_name: str, hour: int) -> xr.DataArray | None:
+    """Load a surface variable from GRIB at a specific hour.
+    
+    Surface files contain all 4 daily timesteps (00, 06, 12, 18).
+    We need to select the correct one based on hour.
+    """
     try:
         ds = xr.open_dataset(str(file_path), engine="cfgrib")
         # GRIB variable names may differ
@@ -71,11 +75,27 @@ def load_grib_surface(file_path: Path, var_name: str) -> xr.DataArray | None:
             "msl": ["msl"],
             "z": ["z", "orog"],
         }
+        da = None
         for name in grib_names.get(var_name, [var_name]):
             if name in ds.data_vars:
-                return ds[name]
-        print(f"  Warning: Variable {var_name} not found in {file_path}")
-        return None
+                da = ds[name]
+                break
+        if da is None:
+            print(f"  Warning: Variable {var_name} not found in {file_path}")
+            return None
+        
+        # Select the correct timestep based on hour
+        # Files typically have step or time dimension with 4 values (00, 06, 12, 18)
+        hour_to_idx = {0: 0, 6: 1, 12: 2, 18: 3}
+        idx = hour_to_idx.get(hour, 0)
+        
+        if "step" in da.dims:
+            da = da.isel(step=idx)
+        elif "time" in da.dims and da.sizes.get("time", 1) > 1:
+            da = da.isel(time=idx)
+        # If no time/step dim, data is already single timestep
+        
+        return da
     except Exception as e:
         print(f"  Error loading {file_path}: {e}")
         return None
@@ -251,7 +271,7 @@ def main() -> None:
             if grib_path is None:
                 missing = True
                 break
-            da = load_grib_surface(grib_path, var)
+            da = load_grib_surface(grib_path, var, hour)
             if da is None:
                 missing = True
                 break
