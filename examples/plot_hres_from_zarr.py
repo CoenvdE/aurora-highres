@@ -241,6 +241,10 @@ def main() -> None:
     
     print(f"Opening {args.zarr_path}...")
     ds = xr.open_zarr(str(args.zarr_path))
+    print("\n📋 ds.coords:")
+    print(ds.coords)
+    print("\n📋 Full Dataset:")
+    print(ds)
     
     print(f"Dataset dimensions:")
     for dim, size in ds.dims.items():
