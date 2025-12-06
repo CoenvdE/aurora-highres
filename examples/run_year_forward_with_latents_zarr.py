@@ -22,7 +22,7 @@ import torch
 import xarray as xr
 import zarr
 
-from examples.extract_latents import register_latent_hooks
+from examples.init_exploring.extract_latents import register_latent_hooks
 from examples.init_exploring.load_era_batch_flexible import (
     load_batch_for_timestep,
     iterate_timesteps,
@@ -382,8 +382,8 @@ def main() -> None:
             time_idx = time_to_idx[target_time]
             
             # Check if Zarr exists and this timestep is already processed
-            if output_zarr.exists() and zarr_store is None:
-                zarr_store = zarr.open(str(output_zarr), mode="a")
+            if args.output_zarr.exists() and zarr_store is None:
+                zarr_store = zarr.open(str(args.output_zarr), mode="a")
                 if args.skip_existing and zarr_store["processed"][time_idx]:
                     print(f"  ⊘ Skipping {target_time} (already processed)")
                     skipped_samples += 1
@@ -521,7 +521,7 @@ def main() -> None:
                 }
                 
                 zarr_store = initialize_zarr_store(
-                    output_zarr,
+                    args.output_zarr,
                     n_timesteps=n_timesteps,
                     surface_shape=(patch_rows, patch_cols, s_channels),
                     pressure_shape=(p_levels, patch_rows, patch_cols, p_channels),
@@ -585,7 +585,7 @@ def main() -> None:
     print(f"  ✓ Successfully processed: {processed_samples} samples")
     print(f"  ⊘ Skipped (existing):     {skipped_samples} samples")
     print(f"  ✗ Failed:                 {failed_samples} samples")
-    print(f"  Output: {output_zarr}")
+    print(f"  Output: {args.output_zarr}")
     print(f"{'='*60}")
     
     # Print example usage
@@ -593,7 +593,7 @@ def main() -> None:
 Example usage with xarray:
 
     import xarray as xr
-    ds = xr.open_zarr("{output_zarr}")
+    ds = xr.open_zarr("{args.output_zarr}")
     
     # Access patch center coordinates
     lat_centres = ds.lat.values  # 1D array of patch center latitudes
