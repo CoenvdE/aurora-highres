@@ -71,6 +71,10 @@ def compute_region_indices_from_bounds(
     ``patch_grid`` is expected to be the output of ``compute_patch_grid`` and
     must contain ``"centres"`` (lat/lon of patch centres) and ``"patch_shape"``
     (``lat_patches``, ``lon_patches``).
+    
+    Handles longitude wraparound: if patch centers are in 0-360° format and
+    requested bounds use negative longitudes (like -30° to 50°), the function
+    normalizes both to the same coordinate system before matching.
     """
 
     centres = patch_grid["centres"]  # (patch_count, 2) [lat, lon]
@@ -82,9 +86,16 @@ def compute_region_indices_from_bounds(
     centres_np = centres.detach().cpu().numpy()
     lat_centres = centres_np[:, 0]
     lon_centres = centres_np[:, 1]
+    
+    # Handle longitude wraparound: normalize patch centers to -180° to 180° range
+    # This ensures negative longitude requests (e.g., -30°) work correctly when
+    # patch centers are stored in 0-360° format (where -30° = 330°)
+    lon_centres_normalized = np.where(
+        lon_centres > 180, lon_centres - 360, lon_centres
+    )
 
     lat_mask = (lat_centres >= lat_min_req) & (lat_centres <= lat_max_req)
-    lon_mask = (lon_centres >= lon_min_req) & (lon_centres <= lon_max_req)
+    lon_mask = (lon_centres_normalized >= lon_min_req) & (lon_centres_normalized <= lon_max_req)
     mask = lat_mask & lon_mask
     if not np.any(mask):
         raise ValueError("Requested bounds do not overlap any patches.")
@@ -97,7 +108,8 @@ def compute_region_indices_from_bounds(
     col_end = int(lon_indices.max())
 
     lat_used = lat_centres[indices]
-    lon_used = lon_centres[indices]
+    # Use normalized longitudes for the region bounds output
+    lon_used = lon_centres_normalized[indices]
     region_bounds: RegionBounds = {
         "lat": (float(lat_used.min()), float(lat_used.max())),
         "lon": (float(lon_used.min()), float(lon_used.max())),
