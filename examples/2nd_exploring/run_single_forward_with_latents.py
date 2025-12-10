@@ -10,7 +10,7 @@ from pathlib import Path
 import h5py
 import torch
 
-from examples.extract_latents import register_latent_hooks
+from examples.init_exploring.extract_latents import register_latent_hooks
 from examples.init_exploring.load_era_batch_snellius import load_batch_from_zarr
 from examples.init_exploring.utils import (
     compute_patch_grid,

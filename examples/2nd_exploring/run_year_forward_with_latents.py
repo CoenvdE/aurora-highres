@@ -11,7 +11,7 @@ import h5py
 import torch
 import xarray as xr
 
-from examples.extract_latents import register_latent_hooks
+from examples.init_exploring.extract_latents import register_latent_hooks
 from examples.init_exploring.load_era_batch_snellius import load_batch_from_zarr
 from examples.init_exploring.utils import (
     compute_patch_grid,
@@ -227,7 +227,8 @@ def main() -> None:
                         data=deagg_latents.numpy(),
                         compression="gzip",
                     )
-                    pressure_dataset.attrs["timestamp"] = actual_time.isoformat()
+                    pressure_dataset.attrs["timestamp"] = actual_time.isoformat(
+                    )
                     pressure_dataset.attrs["shape"] = deagg_latents.shape
 
                     surface_group = handle.require_group("surface_latents")

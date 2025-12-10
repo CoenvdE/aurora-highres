@@ -18,7 +18,7 @@ import h5py
 import torch
 import xarray as xr
 
-from examples.extract_latents import register_latent_hooks
+from examples.init_exploring.extract_latents import register_latent_hooks
 from examples.init_exploring.load_era_batch_flexible import (
     load_batch_for_timestep,
     iterate_timesteps,
@@ -171,7 +171,7 @@ def save_region_bounds_once(
 
 def main() -> None:
     args = parse_args()
-    
+
     # Validate year range
     if args.start_year > args.end_year:
         raise SystemExit("--start-year must be <= --end-year")
@@ -233,7 +233,7 @@ def main() -> None:
             print(f"\n{'='*60}")
             print(f"Processing year {year}")
             print(f"{'='*60}")
-            
+
             year_latents_dir = latents_dir / str(year)
             year_latents_dir.mkdir(parents=True, exist_ok=True)
 
@@ -242,7 +242,7 @@ def main() -> None:
             # Get all timesteps for this year
             year_start = datetime(year, 1, 1)
             year_end = datetime(year, 12, 31)
-            
+
             for target_time in iterate_timesteps(year_start, year_end):
                 timestamp_label = target_time.strftime("%Y-%m-%dT%H-%M-%S")
 
@@ -252,8 +252,9 @@ def main() -> None:
                     skipped_samples += 1
                     continue
 
-                print(f"  ➤ Processing {target_time.strftime('%Y-%m-%d %H:%M')}...")
-                
+                print(
+                    f"  ➤ Processing {target_time.strftime('%Y-%m-%d %H:%M')}...")
+
                 try:
                     # Load batch for this specific timestep
                     batch = load_batch_for_timestep(
@@ -288,12 +289,14 @@ def main() -> None:
                     captures.clear()
                     continue
 
-                actual_time = prediction.metadata.time[0] #TODO: look at best way to save this to index later with dataset
+                # TODO: look at best way to save this to index later with dataset
+                actual_time = prediction.metadata.time[0]
 
                 # Extract captured latents
-                deagg_latents = captures.get("decoder.deaggregated_atmospheric_latents")
+                deagg_latents = captures.get(
+                    "decoder.deaggregated_atmospheric_latents")
                 surface_latents = captures.get("decoder.surface_latents")
-                
+
                 if deagg_latents is None or surface_latents is None:
                     print("    ✗ Latent captures are missing")
                     failed_samples += 1
@@ -321,7 +324,7 @@ def main() -> None:
                         surface_latents=surface_latents,
                         atmos_latents=None,
                     )
-                    
+
                     (
                         atmos_region_latents,
                         _,
@@ -347,7 +350,7 @@ def main() -> None:
                 # Save region bounds once per file
                 if region_indices is None:
                     region_indices = (row_start, row_end, col_start, col_end)
-                    save_region_bounds_once( #TODO: check this
+                    save_region_bounds_once(  # TODO: check this
                         latents_h5, row_start, row_end, col_start, col_end
                     )
 
@@ -355,7 +358,8 @@ def main() -> None:
                 try:
                     with h5py.File(latents_h5, "a") as handle:
                         # Atmospheric latents
-                        levels_group = handle.require_group("pressure_latents_region")
+                        levels_group = handle.require_group(
+                            "pressure_latents_region")
                         if timestamp_label in levels_group:
                             del levels_group[timestamp_label]
                         pressure_dataset = levels_group.create_dataset(
@@ -363,11 +367,13 @@ def main() -> None:
                             data=atmos_region_latents.numpy(),
                             compression="gzip",
                         )
-                        pressure_dataset.attrs["timestamp"] = actual_time.isoformat()
+                        pressure_dataset.attrs["timestamp"] = actual_time.isoformat(
+                        )
                         pressure_dataset.attrs["shape"] = atmos_region_latents.shape
 
                         # Surface latents
-                        surface_group = handle.require_group("surface_latents_region")
+                        surface_group = handle.require_group(
+                            "surface_latents_region")
                         if timestamp_label in surface_group:
                             del surface_group[timestamp_label]
                         surface_dataset = surface_group.create_dataset(
@@ -375,23 +381,25 @@ def main() -> None:
                             data=surf_region_latents.numpy(),
                             compression="gzip",
                         )
-                        surface_dataset.attrs["timestamp"] = actual_time.isoformat()
+                        surface_dataset.attrs["timestamp"] = actual_time.isoformat(
+                        )
                         surface_dataset.attrs["shape"] = surf_region_latents.shape
 
-                    print(f"    ✓ Saved {timestamp_label} to {latents_h5.name}")
+                    print(
+                        f"    ✓ Saved {timestamp_label} to {latents_h5.name}")
                     processed_samples += 1
-                    
+
                 except Exception as exc:
                     print(f"    ✗ Failed to write to H5: {exc}")
                     failed_samples += 1
-                
+
                 captures.clear()
 
                 # Check if we've reached max samples
                 if args.max_samples is not None and processed_samples >= args.max_samples:
                     print("\nReached max sample limit, stopping early.")
                     break
-            
+
             # Break outer loop if max samples reached
             if args.max_samples is not None and processed_samples >= args.max_samples:
                 break
@@ -401,7 +409,7 @@ def main() -> None:
         for handle in handles:
             handle.remove()
         decoder_cleanup()
-        
+
         # Close datasets
         if "static_dataset" in locals():
             static_close = getattr(static_dataset, "close", None)
@@ -425,7 +433,7 @@ if __name__ == "__main__":
     main()
 
 # Usage examples:
-# 
+#
 # Process ALL timesteps (00, 06, 12, 18 UTC) for years 2018-2020 with default region (Europe):
 #   python examples/run_year_forward_with_latents_region.py \
 #       --start-year 2018 --end-year 2020
@@ -441,4 +449,3 @@ if __name__ == "__main__":
 #   python examples/run_year_forward_with_latents_region.py \
 #       --start-year 2018 --end-year 2018 \
 #       --max-samples 10 --skip-existing
-
