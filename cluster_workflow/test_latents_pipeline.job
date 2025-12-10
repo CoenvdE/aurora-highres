@@ -5,7 +5,7 @@
 #SBATCH --job-name=TestLatentsPipeline
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=9
-#SBATCH --time=48:00:00
+#SBATCH --time=1:00:00
 #SBATCH --output=cluster_workflow/jobs/slurm_outputs/test_latents_pipeline_%A.out
 #SBATCH --error=cluster_workflow/jobs/slurm_outputs/test_latents_pipeline_%A.err
 
