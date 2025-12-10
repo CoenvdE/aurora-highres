@@ -174,6 +174,10 @@ def initialize_zarr_store(
     lat_centres = centres_2d[:, 0, 0]  # Take first column's lat values
     lon_centres = centres_2d[0, :, 1]  # Take first row's lon values
     
+    # Normalize longitude from ERA5's 0-360° format to -180°/180° format
+    # This ensures coordinates match user's requested region bounds (e.g., -30° to 50° for Europe)
+    lon_centres = np.where(lon_centres > 180, lon_centres - 360, lon_centres)
+    
     # Create lat coordinate (patch center latitudes)
     lat_arr = store.create_dataset(
         "lat",
