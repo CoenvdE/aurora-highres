@@ -1,6 +1,7 @@
 #!/bin/bash
 
-#SBATCH --partition=thin
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
 #SBATCH --job-name=TestHRESPipeline
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -18,13 +19,20 @@ module load Anaconda3/2023.07-2
 source activate aurora-highres
 CODE_DIR="$HOME/aurora-highres"
 DATA_DIR="/projects/prjs1858"
-TEST_DIR="$DATA_DIR/test"
+TEST_DIR="$CODE_DIR/test_images"
 
 echo "=== TEST HRES PIPELINE ==="
+echo "CODE_DIR: $CODE_DIR"
 echo "DATA_DIR: $DATA_DIR"
 echo "TEST_DIR: $TEST_DIR"
 
 cd $CODE_DIR
+
+# Clean up previous test run
+echo ""
+echo "=== Cleaning up previous test data ==="
+rm -rf "$TEST_DIR"
+mkdir -p "$TEST_DIR"
 
 # Step 1: Download 1 month of HRES data (January 2018)
 echo ""
@@ -61,3 +69,4 @@ python examples/verify_test_hres.py \
 echo ""
 echo "=== TEST COMPLETE ==="
 echo "Check plots in: $TEST_DIR/plots"
+
