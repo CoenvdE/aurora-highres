@@ -95,20 +95,7 @@ def compute_region_indices_from_bounds(
     )
 
     lat_mask = (lat_centres >= lat_min_req) & (lat_centres <= lat_max_req)
-    
-    # Handle longitude wraparound for regions crossing the prime meridian
-    # E.g., Europe from -30° to 50° needs patches from 330°-360° AND 0°-50°
-    if lon_min_req < 0 and lon_max_req > 0:
-        # Region crosses prime meridian: use OR logic
-        # lon_centres_normalized will be in -180 to 180 range
-        lon_mask = (lon_centres_normalized >= lon_min_req) & (lon_centres_normalized <= lon_max_req)
-    elif lon_min_req > lon_max_req:
-        # Alternative wraparound case (e.g., 330° to 50° in 0-360 format)
-        lon_mask = (lon_centres_normalized >= lon_min_req) | (lon_centres_normalized <= lon_max_req)
-    else:
-        # Normal case: no wraparound
-        lon_mask = (lon_centres_normalized >= lon_min_req) & (lon_centres_normalized <= lon_max_req)
-    
+    lon_mask = (lon_centres_normalized >= lon_min_req) & (lon_centres_normalized <= lon_max_req)
     mask = lat_mask & lon_mask
     if not np.any(mask):
         raise ValueError("Requested bounds do not overlap any patches.")

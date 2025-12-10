@@ -503,16 +503,12 @@ def main() -> None:
                 patch_shape = patch_grid["patch_shape"]
                 all_indices = np.arange(centres.shape[0])
                 lat_ids, lon_ids = np.unravel_index(all_indices, patch_shape)
-                # Handle longitude wraparound for regions crossing the prime meridian
-                # When col_start > col_end (e.g., crossing 0° longitude), use OR logic
-                lat_mask = (lat_ids >= row_start) & (lat_ids <= row_end)
-                if col_start <= col_end:
-                    # Normal case: no wraparound
-                    lon_mask = (lon_ids >= col_start) & (lon_ids <= col_end)
-                else:
-                    # Wraparound case: include patches from col_start to end AND 0 to col_end
-                    lon_mask = (lon_ids >= col_start) | (lon_ids <= col_end)
-                mask = lat_mask & lon_mask
+                mask = (
+                    (lat_ids >= row_start)
+                    & (lat_ids <= row_end)
+                    & (lon_ids >= col_start)
+                    & (lon_ids <= col_end)
+                )
                 region_centres = centres[mask]
                 
                 region_info = {
