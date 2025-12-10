@@ -1,0 +1,51 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --job-name=TestLatentsPipeline
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=02:00:00
+#SBATCH --output=jobs/slurm_outputs/test_latents_pipeline_%A.out
+#SBATCH --error=jobs/slurm_outputs/test_latents_pipeline_%A.err
+
+# Test pipeline: Extract latents for 1 month, visualize
+# This tests Step 3 with a small subset
+
+module purge
+module load 2023
+module load CUDA/12.4.0
+module load Anaconda3/2023.07-2
+
+source activate aurora-highres
+CODE_DIR="$HOME/aurora-highres"
+DATA_DIR="/projects/prjs1858"
+TEST_DIR="$DATA_DIR/test"
+
+echo "=== TEST LATENTS PIPELINE ==="
+echo "DATA_DIR: $DATA_DIR"
+echo "TEST_DIR: $TEST_DIR"
+
+cd $CODE_DIR
+export PYTHONPATH="."
+
+# Step 1: Extract latents for January 2018 (max 20 samples for quick test)
+echo ""
+echo "=== Step 1: Extracting latents for January 2018 ==="
+python examples/run_year_forward_with_latents_zarr.py \
+    --start-year 2018 \
+    --end-year 2018 \
+    --output-zarr "$TEST_DIR/latents_europe_jan2018.zarr" \
+    --work-dir "$TEST_DIR/run_year_forward_latents_zarr" \
+    --max-samples 20
+
+# Step 2: Visualize results
+echo ""
+echo "=== Step 2: Visualizing latents ==="
+python examples/verify_test_latents.py \
+    --latents-zarr "$TEST_DIR/latents_europe_jan2018.zarr" \
+    --output-dir "$TEST_DIR/plots"
+
+echo ""
+echo "=== TEST COMPLETE ==="
+echo "Check plots in: $TEST_DIR/plots"

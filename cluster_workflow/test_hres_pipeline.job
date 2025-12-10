@@ -1,0 +1,63 @@
+#!/bin/bash
+
+#SBATCH --partition=thin
+#SBATCH --job-name=TestHRESPipeline
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=04:00:00
+#SBATCH --output=jobs/slurm_outputs/test_hres_pipeline_%A.out
+#SBATCH --error=jobs/slurm_outputs/test_hres_pipeline_%A.err
+
+# Test pipeline: Download 1 month of HRES, convert to Zarr, visualize
+# This tests Steps 1 & 2 with a small subset
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+source activate aurora-highres
+CODE_DIR="$HOME/aurora-highres"
+DATA_DIR="/projects/prjs1858"
+TEST_DIR="$DATA_DIR/test"
+
+echo "=== TEST HRES PIPELINE ==="
+echo "DATA_DIR: $DATA_DIR"
+echo "TEST_DIR: $TEST_DIR"
+
+cd $CODE_DIR
+
+# Step 1: Download 1 month of HRES data (January 2018)
+echo ""
+echo "=== Step 1: Downloading HRES data for January 2018 ==="
+python examples/download_hres_year.py \
+    --start 2018-01-01 \
+    --end 2018-01-31 \
+    --out "$TEST_DIR/hres"
+
+# Step 2a: Convert static variables to Zarr
+echo ""
+echo "=== Step 2a: Converting static variables to Zarr ==="
+python examples/convert_static_to_zarr.py \
+    --output "$TEST_DIR/static_hres.zarr" \
+    --overwrite
+
+# Step 2b: Convert HRES GRIB to Zarr
+echo ""
+echo "=== Step 2b: Converting HRES GRIB to Zarr ==="
+python examples/convert_hres_to_zarr.py \
+    --hres-dir "$TEST_DIR/hres" \
+    --output-zarr "$TEST_DIR/hres_europe_jan2018.zarr" \
+    --start-year 2018 \
+    --end-year 2018
+
+# Step 3: Visualize results
+echo ""
+echo "=== Step 3: Visualizing results ==="
+python examples/verify_test_hres.py \
+    --hres-zarr "$TEST_DIR/hres_europe_jan2018.zarr" \
+    --static-zarr "$TEST_DIR/static_hres.zarr" \
+    --output-dir "$TEST_DIR/plots"
+
+echo ""
+echo "=== TEST COMPLETE ==="
+echo "Check plots in: $TEST_DIR/plots"
