@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#SBATCH --partition=thin
+#SBATCH --job-name=ConvertStaticToZarr
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=01:00:00
+#SBATCH --output=jobs/slurm_outputs/convert_static_to_zarr_%A.out
+#SBATCH --error=jobs/slurm_outputs/convert_static_to_zarr_%A.err
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+source activate aurora-highres
+CODE_DIR="$HOME/aurora-highres"
+DATA_DIR="/projects/prjs1858"
+echo "DATA_DIR is set to: $DATA_DIR"
+
+cd $CODE_DIR
+python examples/convert_static_to_zarr.py \
+    --output "$DATA_DIR/static_hres.zarr" \
+    --overwrite
