@@ -200,13 +200,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--hres-dir",
         type=Path,
-        default=Path("examples/downloads/hres"),
+        default=Path("/projects/prjs1858/hres"),
         help="Directory containing downloaded GRIB files",
     )
     parser.add_argument(
         "--output-zarr",
         type=Path,
-        default=Path("examples/hres_europe_2018_2020.zarr"),
+        default=Path("/projects/prjs1858/hres_europe_2018_2020.zarr"),
         help="Output Zarr path",
     )
     parser.add_argument(

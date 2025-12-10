@@ -131,7 +131,7 @@ def save_to_zarr(ds: xr.Dataset, output_path: Path, overwrite: bool = False) -> 
 
 def main():
     parser = argparse.ArgumentParser(description="Convert Aurora 0.1° static variables to Zarr")
-    parser.add_argument("--output", "-o", type=Path, default=Path("examples/downloads/static_hres.zarr"))
+    parser.add_argument("--output", "-o", type=Path, default=Path("/projects/prjs1858/static_hres.zarr"))
     parser.add_argument("--cache-dir", type=Path, default=None)
     parser.add_argument("--overwrite", action="store_true")
     

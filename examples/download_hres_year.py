@@ -124,7 +124,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("examples/downloads/hres"),
+        default=Path("/projects/prjs1858/hres"),
         help="Output directory root",
     )
     parser.add_argument(

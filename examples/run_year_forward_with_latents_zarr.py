@@ -76,13 +76,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-zarr",
         type=Path,
-        default=Path("examples/latents_europe_2018_2020.zarr"),
+        default=Path("/projects/prjs1858/latents_europe_2018_2020.zarr"),
         help="Output Zarr path for latents dataset",
     )
     parser.add_argument(
         "--work-dir",
         type=Path,
-        default=Path("examples/run_year_forward_latents_zarr"),
+        default=Path("/projects/prjs1858/run_year_forward_latents_zarr"),
         help="Root directory for downloads and cache",
     )
     parser.add_argument(
