@@ -10,8 +10,7 @@
 #SBATCH --error=cluster_workflow/jobs/slurm_outputs/test_latents_pipeline_%A.err
 
 # Get the script directory and set up paths
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CODE_DIR="$(dirname "$SCRIPT_DIR")"
+CODE_DIR="$HOME/aurora-highres"
 EXAMPLES_DIR="$CODE_DIR/examples"
 OUTPUT_ZARR="$EXAMPLES_DIR/test_latents_local.zarr"
 WORK_DIR="$EXAMPLES_DIR/test_latents_work"
