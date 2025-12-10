@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=9
 #SBATCH --time=48:00:00
-#SBATCH --output=cluster_workflow/slurm_outputs/run_latents_2018_2020_%A.out
-#SBATCH --error=cluster_workflow/slurm_outputs/run_latents_2018_2020_%A.err
+#SBATCH --output=cluster_workflow/jobs/slurm_outputs/run_latents_2018_2020_%A.out
+#SBATCH --error=cluster_workflow/jobs/slurm_outputs/run_latents_2018_2020_%A.err
 
 module purge
 module load 2023
