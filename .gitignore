@@ -35,10 +35,19 @@ mlflow_tmp/
 aurora_mlflow_pyfunc/
 mlruns/
 
+# Data files
+*.zarr
+*.zarr/
+
+# Image files
+*.png
+
 # Examples
 examples/latents/   
 examples/downloads/
+examples/examples/downloads/
 examples/hres_vis
+hres_vis/
 
 __pycache__/
 
