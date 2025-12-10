@@ -226,17 +226,95 @@ def main() -> None:
     print(f"Dataset dimensions: {dict(ds.sizes)}")
     print(f"Variables: {list(ds.data_vars)}")
     
+    # ========== DETAILED ZARR DIAGNOSTICS ==========
+    print("\n" + "="*60)
+    print("ZARR COORDINATE DIAGNOSTICS")
+    print("="*60)
+    
+    # Print ALL metadata attributes
+    print("\n--- Zarr Attributes ---")
+    for key, val in sorted(ds.attrs.items()):
+        print(f"  {key}: {val}")
+    
+    # Print coordinate arrays in detail
+    print("\n--- Coordinate Arrays ---")
+    lat_vals = ds.lat.values
+    lon_vals = ds.lon.values
+    print(f"  lat: {len(lat_vals)} values")
+    print(f"    First 5: {lat_vals[:5]}")
+    print(f"    Last 5:  {lat_vals[-5:]}")
+    print(f"    Range: {lat_vals.min():.3f} to {lat_vals.max():.3f}")
+    
+    print(f"  lon: {len(lon_vals)} values")
+    print(f"    First 5: {lon_vals[:5]}")
+    print(f"    Last 5:  {lon_vals[-5:]}")
+    print(f"    Range: {lon_vals.min():.3f} to {lon_vals.max():.3f}")
+    
+    # Check if lon values wrap around (0-360 vs -180-180)
+    if lon_vals.min() >= 0 and lon_vals.max() > 180:
+        print(f"    NOTE: Longitudes in 0-360° format")
+        # Convert to -180 to 180 for display
+        lon_normalized = np.where(lon_vals > 180, lon_vals - 360, lon_vals)
+        print(f"    Normalized range: {lon_normalized.min():.3f} to {lon_normalized.max():.3f}")
+    
+    # Print bounds arrays
+    if "lat_bounds" in ds:
+        lat_bounds = ds.lat_bounds.values
+        print(f"\n  lat_bounds shape: {lat_bounds.shape}")
+        print(f"    First patch: [{lat_bounds[0, 0]:.3f}, {lat_bounds[0, 1]:.3f}]")
+        print(f"    Last patch:  [{lat_bounds[-1, 0]:.3f}, {lat_bounds[-1, 1]:.3f}]")
+    
+    if "lon_bounds" in ds:
+        lon_bounds = ds.lon_bounds.values  
+        print(f"  lon_bounds shape: {lon_bounds.shape}")
+        print(f"    First patch: [{lon_bounds[0, 0]:.3f}, {lon_bounds[0, 1]:.3f}]")
+        print(f"    Last patch:  [{lon_bounds[-1, 0]:.3f}, {lon_bounds[-1, 1]:.3f}]")
+    
+    # Compare expected vs actual
+    print("\n--- Expected vs Actual ---")
+    expected_lat_range = (ds.attrs.get('region_lat_min'), ds.attrs.get('region_lat_max'))
+    expected_lon_range = (ds.attrs.get('region_lon_min'), ds.attrs.get('region_lon_max'))
+    actual_lat_range = (float(lat_vals.min()), float(lat_vals.max()))
+    actual_lon_range = (float(lon_vals.min()), float(lon_vals.max()))
+    
+    print(f"  Expected lat range: {expected_lat_range}")
+    print(f"  Actual lat range:   {actual_lat_range}")
+    print(f"  Expected lon range: {expected_lon_range}")
+    print(f"  Actual lon range:   {actual_lon_range}")
+    
+    # Check patch grid info
+    print("\n--- Patch Grid Info ---")
+    print(f"  patch_row_start: {ds.attrs.get('patch_row_start', 'N/A')}")
+    print(f"  patch_row_end:   {ds.attrs.get('patch_row_end', 'N/A')}")
+    print(f"  patch_col_start: {ds.attrs.get('patch_col_start', 'N/A')}")
+    print(f"  patch_col_end:   {ds.attrs.get('patch_col_end', 'N/A')}")
+    print(f"  patch_shape:     {ds.attrs.get('patch_shape', 'N/A')}")
+    
+    # Calculate expected number of patches
+    expected_lat_patches = ds.attrs.get('patch_row_end', 0) - ds.attrs.get('patch_row_start', 0) + 1
+    expected_lon_patches = ds.attrs.get('patch_col_end', 0) - ds.attrs.get('patch_col_start', 0) + 1
+    print(f"\n  Expected patches: {expected_lat_patches} lat x {expected_lon_patches} lon")
+    print(f"  Actual patches:   {len(lat_vals)} lat x {len(lon_vals)} lon")
+    
+    if len(lon_vals) != expected_lon_patches:
+        print(f"\n  ⚠️  WARNING: Lon patch count mismatch!")
+        print(f"     This indicates the Zarr was initialized with wrong dimensions,")
+        print(f"     or the region_centres were not properly filtered.")
+    
+    print("="*60 + "\n")
+    # ========== END DIAGNOSTICS ==========
+    
     # Check processed timesteps
     processed = ds["processed"].values
     processed = np.nan_to_num(processed, nan=0.0).astype(bool)
     n_processed = int(processed.sum())
-    print(f"\nProcessed timesteps: {n_processed} / {len(processed)}")
+    print(f"Processed timesteps: {n_processed} / {len(processed)}")
     
     if n_processed == 0:
         print("ERROR: No timesteps were processed!")
         return
     
-    # Print coordinate info
+    # Print coordinate info  
     print(f"\nLat centers: {ds.lat.values[0]:.2f} to {ds.lat.values[-1]:.2f} ({len(ds.lat)} patches)")
     print(f"Lon centers: {ds.lon.values[0]:.2f} to {ds.lon.values[-1]:.2f} ({len(ds.lon)} patches)")
     print(f"Levels: {ds.level.values}")
@@ -482,7 +560,7 @@ def main() -> None:
         im = ax2.imshow(
             prediction_arr,
             extent=extent,
-            origin="upper",
+            origin=origin,
             transform=ccrs.PlateCarree(),
             cmap="coolwarm",
             vmin=color_limits[0],

@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=04:00:00
-#SBATCH --output=jobs/slurm_outputs/test_hres_pipeline_%A.out
-#SBATCH --error=jobs/slurm_outputs/test_hres_pipeline_%A.err
+#SBATCH --output=cluster_workflow/slurm_outputs/test_hres_pipeline_%A.out
+#SBATCH --error=cluster_workflow/slurm_outputs/test_hres_pipeline_%A.err
 
 # Test pipeline: Download 1 month of HRES, convert to Zarr, visualize
 # This tests Steps 1 & 2 with a small subset
