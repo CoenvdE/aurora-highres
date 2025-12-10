@@ -56,3 +56,4 @@ run_year_forward_latents
 run_single_forward
 run_single_forward_with_latents_region
 test_images/
+cluster_workflow/jobs/

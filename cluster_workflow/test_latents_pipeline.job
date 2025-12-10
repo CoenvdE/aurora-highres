@@ -20,14 +20,21 @@ module load Anaconda3/2023.07-2
 source activate aurora-highres
 CODE_DIR="$HOME/aurora-highres"
 DATA_DIR="/projects/prjs1858"
-TEST_DIR="$DATA_DIR/test"
+TEST_DIR="$CODE_DIR/test_images"
 
 echo "=== TEST LATENTS PIPELINE ==="
+echo "CODE_DIR: $CODE_DIR"
 echo "DATA_DIR: $DATA_DIR"
 echo "TEST_DIR: $TEST_DIR"
 
 cd $CODE_DIR
 export PYTHONPATH="."
+
+# Clean up previous test run
+echo ""
+echo "=== Cleaning up previous test data ==="
+rm -rf "$TEST_DIR"
+mkdir -p "$TEST_DIR"
 
 # Step 1: Extract latents for January 2018 (max 20 samples for quick test)
 echo ""
