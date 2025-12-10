@@ -155,16 +155,31 @@ def load_latents_from_zarr(
         }
     
     # Calculate extent from ACTUAL lat/lon coordinates
+    lat_values = ds.lat.values
+    lon_values = ds.lon.values
     lat_bounds = ds.lat_bounds.values  # (n_lat, 2) with [min, max]
     lon_bounds = ds.lon_bounds.values  # (n_lon, 2) with [min, max]
     
+    # Compute extent - need to ensure lat_min < lat_max for cartopy
+    lon_min = float(lon_bounds[0, 0])
+    lon_max = float(lon_bounds[-1, 1])
+    
+    # Get all lat values and find true min/max
+    all_lat_bounds = lat_bounds.flatten()
+    lat_min = float(np.min(all_lat_bounds))
+    lat_max = float(np.max(all_lat_bounds))
+    
     # Extent is (lon_min, lon_max, lat_min, lat_max)
-    extent = (
-        float(lon_bounds[0, 0]),   # First lon patch min
-        float(lon_bounds[-1, 1]),  # Last lon patch max
-        float(lat_bounds[-1, 0]),  # Last lat patch min (southern)
-        float(lat_bounds[0, 1]),   # First lat patch max (northern)
-    )
+    extent = (lon_min, lon_max, lat_min, lat_max)
+    
+    # Debug output
+    print(f"  DEBUG: lat_values range: {lat_values[0]:.2f} to {lat_values[-1]:.2f}")
+    print(f"  DEBUG: lon_values range: {lon_values[0]:.2f} to {lon_values[-1]:.2f}")
+    print(f"  DEBUG: Computed extent: {extent}")
+    
+    # Determine lat ordering for origin parameter
+    lat_increasing = lat_values[0] < lat_values[-1]
+    print(f"  DEBUG: lat_increasing={lat_increasing} (origin should be {'lower' if lat_increasing else 'upper'})")
     
     atmos_levels = torch.tensor(ds.attrs["atmos_levels"])
     
@@ -178,6 +193,7 @@ def load_latents_from_zarr(
         extent,
         atmos_levels,
         actual_time,
+        lat_increasing,  # Added: True if lat goes south-to-north, False if north-to-south
     )
 
 
@@ -256,11 +272,15 @@ def main() -> None:
             extent,
             atmos_levels,
             actual_time,
+            lat_increasing,
         ) = load_latents_from_zarr(
             args.latents_zarr,
             time_idx=first_idx,
             mode="surface",
         )
+        
+        # Determine origin based on lat ordering
+        origin = "lower" if lat_increasing else "upper"
         
         print(f"Loaded latents for {actual_time}")
         print(f"  Shape: {region_latents.shape}")
@@ -287,9 +307,12 @@ def main() -> None:
             region_field = region_field.squeeze(0)
         
         print(f"Decoded surface variable {args.var_name}: {decoded.shape}")
+        print(f"  region_field shape: {region_field.shape}")
         print(f"  Min: {region_field.min().item():.2f}, Max: {region_field.max().item():.2f}")
+        print(f"  Extent for plot: {extent}")
         
         color_limits = _compute_color_limits(region_field.detach().cpu())
+        print(f"  Color limits: {color_limits}")
         
         # Use extent-based bounds for consistent alignment
         extent_as_bounds = {
@@ -341,7 +364,7 @@ def main() -> None:
         im = ax2.imshow(
             prediction_arr,
             extent=extent,
-            origin="upper",
+            origin=origin,
             transform=ccrs.PlateCarree(),
             cmap="coolwarm",
             vmin=color_limits[0],
@@ -376,11 +399,15 @@ def main() -> None:
             extent,
             atmos_levels,
             actual_time,
+            lat_increasing,
         ) = load_latents_from_zarr(
             args.latents_zarr,
             time_idx=first_idx,
             mode="atmos",
         )
+        
+        # Determine origin based on lat ordering
+        origin = "lower" if lat_increasing else "upper"
         
         print(f"Loaded latents for {actual_time}")
         print(f"  Shape: {region_latents.shape}")
