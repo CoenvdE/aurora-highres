@@ -34,6 +34,9 @@ from examples.init_exploring.utils import (
 )
 from examples.init_exploring.region_selection import (
     prepare_region_for_capture,
+    compute_lon_roll_shift,
+    roll_latents_to_180,
+    get_rolled_patch_grid,
 )
 
 DEFAULT_ZARR_PATH = (
@@ -134,50 +137,47 @@ def initialize_zarr_store(
     zarr_path: Path,
     n_timesteps: int,
     surface_shape: Tuple[int, int, int],  # (rows, cols, channels)
-    pressure_shape: Tuple[int, int, int, int],  # (levels, rows, cols, channels)
+    # (levels, rows, cols, channels)
+    pressure_shape: Tuple[int, int, int, int],
     region_bounds: dict,
     region_info: dict,
     atmos_levels: tuple,
     timesteps: list[datetime],
 ) -> zarr.Group:
     """Initialize Zarr store with proper structure for latents storage.
-    
+
     Aurora produces two types of latents:
     - surface_latents: (time, lat, lon, channels) - 1 "level" for surface variables
     - pressure_latents: (time, level, lat, lon, channels) - 13 pressure levels
-    
+
     These are stored SEPARATELY (not stacked) because they have different shapes.
     The surface latents correspond to surface variables (2t, 10u, 10v, msl).
     The pressure latents correspond to atmospheric variables (z, u, v, t, q) at 13 levels.
-    
+
     Coordinates:
         lat: 1D array of patch center latitudes
         lon: 1D array of patch center longitudes
         level: 1D array of pressure levels [50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000]
-        
+
     Bounds (for each patch):
         lat_bounds: (n_lat, 2) with [lat_min, lat_max] for each row
         lon_bounds: (n_lon, 2) with [lon_min, lon_max] for each col
-    
+
     Usage:
         ds.surface_latents.sel(lat=55.0, lon=10.0, method="nearest")
         ds.lat.values  # patch center latitudes
         ds.lat_bounds.values  # [[lat_min, lat_max], ...] for each lat
     """
-    
+
     store = zarr.open(str(zarr_path), mode="w")
-    
+
     # Extract patch center coordinates as 1D arrays
     # region_info["centres"] is (n_patches, 2) with [lat, lon]
     s_rows, s_cols, s_channels = surface_shape
     centres_2d = region_info["centres"].numpy().reshape(s_rows, s_cols, 2)
     lat_centres = centres_2d[:, 0, 0]  # Take first column's lat values
     lon_centres = centres_2d[0, :, 1]  # Take first row's lon values
-    
-    # Normalize longitude from ERA5's 0-360° format to -180°/180° format
-    # This ensures coordinates match user's requested region bounds (e.g., -30° to 50° for Europe)
-    lon_centres = np.where(lon_centres > 180, lon_centres - 360, lon_centres)
-    
+
     # Create lat coordinate (patch center latitudes)
     lat_arr = store.create_dataset(
         "lat",
@@ -185,7 +185,7 @@ def initialize_zarr_store(
         dtype="float32",
     )
     lat_arr.attrs["_ARRAY_DIMENSIONS"] = ["lat"]
-    
+
     # Create lon coordinate (patch center longitudes)
     lon_arr = store.create_dataset(
         "lon",
@@ -193,38 +193,39 @@ def initialize_zarr_store(
         dtype="float32",
     )
     lon_arr.attrs["_ARRAY_DIMENSIONS"] = ["lon"]
-    
+
     # Create lat/lon bounds for each patch
     # Estimate bounds from spacing between centers
-    lat_spacing = np.abs(np.diff(lat_centres).mean()) 
-    lon_spacing = np.abs(np.diff(lon_centres).mean()) 
-    
+    lat_spacing = np.abs(np.diff(lat_centres).mean())
+    lon_spacing = np.abs(np.diff(lon_centres).mean())
+
     lat_bounds = np.stack([
         lat_centres - lat_spacing / 2,
         lat_centres + lat_spacing / 2
     ], axis=-1).astype(np.float32)
-    
+
     lon_bounds = np.stack([
         lon_centres - lon_spacing / 2,
         lon_centres + lon_spacing / 2
     ], axis=-1).astype(np.float32)
-    
+
     lat_bounds_arr = store.create_dataset(
         "lat_bounds",
         data=lat_bounds,
         dtype="float32",
     )
     lat_bounds_arr.attrs["_ARRAY_DIMENSIONS"] = ["lat", "bounds"]
-    
+
     lon_bounds_arr = store.create_dataset(
         "lon_bounds",
         data=lon_bounds,
         dtype="float32",
     )
     lon_bounds_arr.attrs["_ARRAY_DIMENSIONS"] = ["lon", "bounds"]
-    
+
     # Create time coordinate (as int64 nanoseconds for xarray compatibility)
-    time_values = np.array([np.datetime64(t) for t in timesteps], dtype="datetime64[ns]")
+    time_values = np.array([np.datetime64(t)
+                           for t in timesteps], dtype="datetime64[ns]")
     time_arr = store.create_dataset(
         "time",
         data=time_values,
@@ -232,7 +233,7 @@ def initialize_zarr_store(
         chunks=(n_timesteps,),  # Single chunk for the time coordinate
     )
     time_arr.attrs["_ARRAY_DIMENSIONS"] = ["time"]
-    
+
     # Create levels coordinate for pressure data
     # Aurora uses 13 levels: 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000 hPa
     # Explicitly cast to int to avoid float64 from Aurora metadata
@@ -244,11 +245,12 @@ def initialize_zarr_store(
         fill_value=None,  # Explicitly no fill value so that 0 is not converted to NaN
     )
     level_arr.attrs["_ARRAY_DIMENSIONS"] = ["level"]
-    
+
     # Create channels coordinate - ensure no NaNs and proper int32 type
     # IMPORTANT: fill_value=None prevents xarray from treating 0 as NaN
     channel_data = np.arange(s_channels, dtype=np.int32)
-    assert not np.isnan(channel_data.astype(float)).any(), "Channel data contains NaNs!"
+    assert not np.isnan(channel_data.astype(
+        float)).any(), "Channel data contains NaNs!"
     channel_arr = store.create_dataset(
         "channel",
         data=channel_data,
@@ -256,7 +258,7 @@ def initialize_zarr_store(
         fill_value=None,  # Explicitly no fill value - prevents 0→NaN conversion
     )
     channel_arr.attrs["_ARRAY_DIMENSIONS"] = ["channel"]
-    
+
     # Surface latents: (time, lat, lon, channels) - SEPARATE from pressure
     # This contains latents for surface-level variables (2t, 10u, 10v, msl)
     surface_arr = store.create_dataset(
@@ -264,22 +266,26 @@ def initialize_zarr_store(
         shape=(n_timesteps, s_rows, s_cols, s_channels),
         chunks=(1, s_rows, s_cols, s_channels),  # 1 timestep per chunk
         dtype="float32",
-        fill_value=np.nan, # set to nan to show nan for all unprocessed timesteps and missing values
+        # set to nan to show nan for all unprocessed timesteps and missing values
+        fill_value=np.nan,
     )
     surface_arr.attrs["_ARRAY_DIMENSIONS"] = ["time", "lat", "lon", "channel"]
-    
+
     # Pressure latents: (time, level, lat, lon, channels) - 13 pressure levels
     # This contains latents for atmospheric variables (z, u, v, t, q) at each pressure level
     p_levels, p_rows, p_cols, p_channels = pressure_shape
     pressure_arr = store.create_dataset(
         "pressure_latents",
         shape=(n_timesteps, p_levels, p_rows, p_cols, p_channels),
-        chunks=(1, p_levels, p_rows, p_cols, p_channels),  # NOTE 1 timestep per chunk, all channels are stored in the same chunk
+        # NOTE 1 timestep per chunk, all channels are stored in the same chunk
+        chunks=(1, p_levels, p_rows, p_cols, p_channels),
         dtype="float32",
-        fill_value=np.nan, # set to nan to show nan for all unprocessed timesteps and missing values
+        # set to nan to show nan for all unprocessed timesteps and missing values
+        fill_value=np.nan,
     )
-    pressure_arr.attrs["_ARRAY_DIMENSIONS"] = ["time", "level", "lat", "lon", "channel"]
-    
+    pressure_arr.attrs["_ARRAY_DIMENSIONS"] = [
+        "time", "level", "lat", "lon", "channel"]
+
     # Create tracking array for which timesteps are processed
     processed_arr = store.create_dataset(
         "processed",
@@ -288,7 +294,7 @@ def initialize_zarr_store(
         fill_value=False,
     )
     processed_arr.attrs["_ARRAY_DIMENSIONS"] = ["time"]
-    
+
     # Store metadata as attributes (consistent naming with HRES zarr)
     store.attrs["region_bounds"] = json.dumps(region_bounds)
     store.attrs["region_lat_min"] = region_bounds["lat"][0]
@@ -301,37 +307,41 @@ def initialize_zarr_store(
     store.attrs["pressure_shape"] = list(pressure_shape)
     store.attrs["start_time"] = str(timesteps[0])
     store.attrs["end_time"] = str(timesteps[-1])
-    
+
     # Store patch grid info for reference
     store.attrs["patch_row_start"] = int(region_info["row_start"])
     store.attrs["patch_row_end"] = int(region_info["row_end"])
     store.attrs["patch_col_start"] = int(region_info["col_start"])
     store.attrs["patch_col_end"] = int(region_info["col_end"])
     store.attrs["patch_shape"] = list(region_info["patch_shape"])
-    
+
     print(f"✓ Initialized Zarr store at {zarr_path}")
-    print(f"  Lat centers: {len(lat_centres)} values from {lat_centres[0]:.2f} to {lat_centres[-1]:.2f}")
-    print(f"  Lon centers: {len(lon_centres)} values from {lon_centres[0]:.2f} to {lon_centres[-1]:.2f}")
+    print(
+        f"  Lat centers: {len(lat_centres)} values from {lat_centres[0]:.2f} to {lat_centres[-1]:.2f}")
+    print(
+        f"  Lon centers: {len(lon_centres)} values from {lon_centres[0]:.2f} to {lon_centres[-1]:.2f}")
     print(f"  Levels: {list(atmos_levels)}")
-    print(f"  Surface latents: (time={n_timesteps}, lat={s_rows}, lon={s_cols}, channels={s_channels})")
-    print(f"  Pressure latents: (time={n_timesteps}, level={p_levels}, lat={p_rows}, lon={p_cols}, channels={p_channels})")
-    
+    print(
+        f"  Surface latents: (time={n_timesteps}, lat={s_rows}, lon={s_cols}, channels={s_channels})")
+    print(
+        f"  Pressure latents: (time={n_timesteps}, level={p_levels}, lat={p_rows}, lon={p_cols}, channels={p_channels})")
+
     # Consolidate metadata for fast xarray reads
     zarr.consolidate_metadata(str(zarr_path))
-    
+
     return store
 
 
 def main() -> None:
     args = parse_args()
-    
+
     # Validate year range
     if args.start_year > args.end_year:
         raise SystemExit("--start-year must be <= --end-year")
 
     work_dir = args.work_dir.expanduser()
     work_dir.mkdir(parents=True, exist_ok=True)
-    
+
     static_path = ensure_static_dataset(work_dir)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -359,24 +369,29 @@ def main() -> None:
     all_timesteps = get_all_timesteps(args.start_year, args.end_year)
     n_timesteps = len(all_timesteps)
     print(f"Total timesteps to process: {n_timesteps}")
-    
+
     # Create timestamp to index mapping for fast lookup
-    time_to_idx = {t: i for i, t in enumerate(all_timesteps)} 
+    time_to_idx = {t: i for i, t in enumerate(all_timesteps)}
 
     # Track if Zarr is initialized
     zarr_store = None
     patch_grid = None
-    
+    roll_shift = None
+    rolled_patch_grid = None
+
     try:
-        print("Opening ERA5 Zarr dataset once...") 
-        dataset = xr.open_zarr(args.zarr_path, consolidated=True) #NOTE: dask autochunking
+        print("Opening ERA5 Zarr dataset once...")
+        # NOTE: dask autochunking
+        dataset = xr.open_zarr(args.zarr_path, consolidated=True)
 
         print("Opening static dataset once...")
         try:
-            static_dataset = xr.open_dataset(static_path, engine="netcdf4") #NOTE: dask autochunking
+            static_dataset = xr.open_dataset(
+                static_path, engine="netcdf4")  # NOTE: dask autochunking
         except OSError:
             print("Falling back to scipy engine for static dataset...")
-            static_dataset = xr.open_dataset(static_path, engine="scipy") #NOTE: dask autochunking
+            static_dataset = xr.open_dataset(
+                static_path, engine="scipy")  # NOTE: dask autochunking
 
         processed_samples = 0
         failed_samples = 0
@@ -384,7 +399,7 @@ def main() -> None:
 
         for target_time in all_timesteps:
             time_idx = time_to_idx[target_time]
-            
+
             # Check if Zarr exists and this timestep is already processed
             if args.output_zarr.exists() and zarr_store is None:
                 zarr_store = zarr.open(str(args.output_zarr), mode="a")
@@ -392,16 +407,17 @@ def main() -> None:
                     print(f"  ⊘ Skipping {target_time} (already processed)")
                     skipped_samples += 1
                     continue
-            
+
             # Check max samples
             if args.max_samples and processed_samples >= args.max_samples:
                 print("\nReached max sample limit, stopping early.")
                 break
 
-            print(f"  ➤ Processing {target_time.strftime('%Y-%m-%d %H:%M')} (idx={time_idx})...")
-            
+            print(
+                f"  ➤ Processing {target_time.strftime('%Y-%m-%d %H:%M')} (idx={time_idx})...")
+
             try:
-                batch = load_batch_for_timestep( #TODO: check mechanics of this
+                batch = load_batch_for_timestep(  # TODO: check mechanics of this
                     target_time=target_time,
                     zarr_path=args.zarr_path,
                     static_path=str(static_path),
@@ -420,7 +436,13 @@ def main() -> None:
                     batch.metadata.lon,
                     model.patch_size,
                 )
-            
+                # Compute roll shift to convert from Aurora's 0-360° to -180° to 180°
+                roll_shift = compute_lon_roll_shift(patch_grid)
+                # Create rolled patch grid with -180° to 180° coordinates
+                rolled_patch_grid = get_rolled_patch_grid(
+                    patch_grid, roll_shift)
+                print(f"  Computed longitude roll shift: {roll_shift} columns")
+
             # Run forward pass
             batch_device = batch.to(device)
             try:
@@ -433,9 +455,10 @@ def main() -> None:
                 continue
 
             # Extract captured latents
-            deagg_latents = captures.get("decoder.deaggregated_atmospheric_latents")
+            deagg_latents = captures.get(
+                "decoder.deaggregated_atmospheric_latents")
             surface_latents = captures.get("decoder.surface_latents")
-            
+
             if deagg_latents is None or surface_latents is None:
                 print("    ✗ Latent captures are missing")
                 failed_samples += 1
@@ -445,7 +468,15 @@ def main() -> None:
             deagg_latents = deagg_latents.detach().cpu()
             surface_latents = surface_latents.detach().cpu()
 
-            # Prepare region-specific latents
+            # Roll latents from Aurora's 0-360° to -180° to 180° coordinate system
+            # This ensures the region selection correctly handles regions that cross 0°
+            patch_shape = patch_grid["patch_shape"]
+            surface_latents_rolled = roll_latents_to_180(
+                surface_latents, patch_shape, roll_shift)
+            deagg_latents_rolled = roll_latents_to_180(
+                deagg_latents, patch_shape, roll_shift)
+
+            # Prepare region-specific latents using rolled coordinates
             try:
                 (
                     surf_region_latents,
@@ -459,11 +490,12 @@ def main() -> None:
                 ) = prepare_region_for_capture(
                     mode="surface",
                     requested_bounds=requested_bounds,
-                    patch_grid=patch_grid,
-                    surface_latents=surface_latents,
+                    patch_grid=rolled_patch_grid,  # Use rolled grid with -180 to 180 coords
+                    surface_latents=surface_latents_rolled,
                     atmos_latents=None,
+                    normalize_lon=False,  # Already in -180 to 180 after rolling
                 )
-                
+
                 (
                     atmos_region_latents,
                     _,
@@ -476,9 +508,10 @@ def main() -> None:
                 ) = prepare_region_for_capture(
                     mode="atmos",
                     requested_bounds=requested_bounds,
-                    patch_grid=patch_grid,
+                    patch_grid=rolled_patch_grid,  # Use rolled grid with -180 to 180 coords
                     surface_latents=None,
-                    atmos_latents=deagg_latents,
+                    atmos_latents=deagg_latents_rolled,
+                    normalize_lon=False,  # Already in -180 to 180 after rolling
                 )
             except Exception as exc:
                 print(f"    ✗ Region extraction failed: {exc}")
@@ -487,24 +520,24 @@ def main() -> None:
                 continue
 
             # Calculate patch dimensions (needed for reshape below)
-            patch_rows = row_end - row_start + 1 
-            patch_cols = col_end - col_start + 1 
+            patch_rows = row_end - row_start + 1
+            patch_cols = col_end - col_start + 1
 
             # Initialize Zarr on first successful sample
             if zarr_store is None:
                 # Get shapes from first sample
                 # surf_region_latents shape: (1, n_patches, levels=1, channels)
                 surf_np = surf_region_latents.numpy()
-                s_channels = surf_np.shape[-1] 
-                
+                s_channels = surf_np.shape[-1]
+
                 # atmos_region_latents shape: (1, n_patches, levels, channels)
                 atmos_np = atmos_region_latents.numpy()
                 p_levels = atmos_np.shape[2]  # levels is dim 2
                 p_channels = atmos_np.shape[-1]
-                
-                # Get patch centres for the region
-                centres = patch_grid["centres"]
-                patch_shape = patch_grid["patch_shape"]
+
+                # Get patch centres for the region (using rolled grid for -180 to 180 coords)
+                centres = rolled_patch_grid["centres"]
+                patch_shape = rolled_patch_grid["patch_shape"]
                 all_indices = np.arange(centres.shape[0])
                 lat_ids, lon_ids = np.unravel_index(all_indices, patch_shape)
                 mask = (
@@ -514,7 +547,7 @@ def main() -> None:
                     & (lon_ids <= col_end)
                 )
                 region_centres = centres[mask]
-                
+
                 region_info = {
                     "row_start": row_start,
                     "row_end": row_end,
@@ -523,12 +556,13 @@ def main() -> None:
                     "patch_shape": patch_shape,
                     "centres": region_centres,
                 }
-                
+
                 zarr_store = initialize_zarr_store(
                     args.output_zarr,
                     n_timesteps=n_timesteps,
                     surface_shape=(patch_rows, patch_cols, s_channels),
-                    pressure_shape=(p_levels, patch_rows, patch_cols, p_channels),
+                    pressure_shape=(p_levels, patch_rows,
+                                    patch_cols, p_channels),
                     region_bounds=requested_bounds,
                     region_info=region_info,
                     atmos_levels=batch.metadata.atmos_levels,
@@ -536,35 +570,39 @@ def main() -> None:
                 )
 
             # Reshape and write to Zarr
-            try: 
+            try:
                 # Reshape surface: (1, rows*cols, 1, channels) -> (rows, cols, channels)
                 # Note: surface latents from select_region_latents have shape
                 # (batch, patches, levels=1, channels), squeeze the levels dim
                 surf_np = surf_region_latents.numpy()
-                surf_reshaped = surf_np[0, :, 0, :].reshape(patch_rows, patch_cols, -1)
-                zarr_store["surface_latents"][time_idx] = surf_reshaped.astype(np.float32)
-                
+                surf_reshaped = surf_np[0, :, 0, :].reshape(
+                    patch_rows, patch_cols, -1)
+                zarr_store["surface_latents"][time_idx] = surf_reshaped.astype(
+                    np.float32)
+
                 # Reshape pressure: (1, rows*cols, levels, channels) -> (levels, rows, cols, channels)
                 # Note: select_region_latents returns (batch, patches, levels, channels)
                 # We need to reshape patches to (rows, cols), then transpose to get levels first
                 atmos_np = atmos_region_latents.numpy()
                 n_levels = atmos_np.shape[2]  # levels is dim 2, not dim 1
                 # First reshape: (patches, levels, channels) -> (rows, cols, levels, channels)
-                atmos_reshaped = atmos_np[0].reshape(patch_rows, patch_cols, n_levels, -1)
+                atmos_reshaped = atmos_np[0].reshape(
+                    patch_rows, patch_cols, n_levels, -1)
                 # Then transpose to (levels, rows, cols, channels)
                 atmos_reshaped = atmos_reshaped.transpose(2, 0, 1, 3)
-                zarr_store["pressure_latents"][time_idx] = atmos_reshaped.astype(np.float32)
-                
+                zarr_store["pressure_latents"][time_idx] = atmos_reshaped.astype(
+                    np.float32)
+
                 # Mark as processed
                 zarr_store["processed"][time_idx] = True
-                
+
                 print(f"    ✓ Saved timestep {time_idx}/{n_timesteps}")
                 processed_samples += 1
-                
+
             except Exception as exc:
                 print(f"    ✗ Failed to write to Zarr: {exc}")
                 failed_samples += 1
-            
+
             captures.clear()
 
     finally:
@@ -572,7 +610,7 @@ def main() -> None:
         for handle in handles:
             handle.remove()
         decoder_cleanup()
-        
+
         # Close datasets
         if "static_dataset" in locals():
             static_close = getattr(static_dataset, "close", None)
@@ -591,7 +629,7 @@ def main() -> None:
     print(f"  ✗ Failed:                 {failed_samples} samples")
     print(f"  Output: {args.output_zarr}")
     print(f"{'='*60}")
-    
+
     # Print example usage
     print(f"""
 Example usage with xarray:
@@ -627,7 +665,7 @@ if __name__ == "__main__":
     main()
 
 # Usage examples:
-# 
+#
 # Process ALL timesteps (00, 06, 12, 18 UTC) for years 2018-2020:
 #   python examples/run_year_forward_with_latents_zarr.py \
 #       --start-year 2018 --end-year 2020 \
