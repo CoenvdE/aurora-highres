@@ -46,6 +46,8 @@ def main() -> None:
     
     # Check processed timesteps - load only this small array
     processed = ds["processed"].values
+    # Handle potential NaN values in processed array
+    processed = np.nan_to_num(processed, nan=0.0).astype(bool)
     n_processed = int(processed.sum())
     print(f"\nProcessed timesteps: {n_processed} / {len(processed)}")
     
