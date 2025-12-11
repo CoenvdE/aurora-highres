@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -25,7 +26,10 @@ from typing import Dict, Iterable
 
 import requests
 from requests.exceptions import ChunkedEncodingError, ConnectionError, Timeout
-from huggingface_hub import hf_hub_download
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 # Minimum expected file size in bytes (GRIB files should be at least 1KB)
 MIN_FILE_SIZE = 1024
@@ -152,13 +156,21 @@ def download_to(url: str, target: Path, chunk_size: int = 4 * 1024 * 1024) -> bo
 
 
 def ensure_static_variables(root: Path) -> None:
-    static_dir = root / "static"
-    static_dir.mkdir(parents=True, exist_ok=True)
-    hf_hub_download(
-        repo_id="microsoft/aurora",
-        filename="aurora-0.1-static.pickle",
-        cache_dir=str(static_dir),
-    )
+    """Download static variables from Hugging Face (optional, skip if fails)."""
+    try:
+        from huggingface_hub import hf_hub_download
+        static_dir = root / "static"
+        static_dir.mkdir(parents=True, exist_ok=True)
+        print("Downloading static variables from Hugging Face...")
+        hf_hub_download(
+            repo_id="microsoft/aurora",
+            filename="aurora-0.1-static.pickle",
+            cache_dir=str(static_dir),
+        )
+        print("✓ Static variables downloaded")
+    except Exception as e:
+        print(f"⚠ Could not download static variables: {e}")
+        print("  (Continuing with HRES download anyway)")
 
 
 def collect_downloads(day: date, base_dir: Path) -> Dict[Path, str]:
@@ -215,9 +227,13 @@ def main() -> None:
     if start_day > end_day:
         raise ValueError("--start must be before or equal to --end")
 
+    print(f"Starting HRES download: {start_day} to {end_day}")
+    print(f"Output directory: {args.out}")
+
     if not args.validate_only:
         ensure_static_variables(args.out)
 
+    print(f"\nBeginning download loop...")
     total_success = 0
     total_failed = 0
     total_skipped = 0
