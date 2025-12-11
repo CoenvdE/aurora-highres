@@ -267,7 +267,11 @@ def _plot_world_and_region(
 
     output_dir = "examples/latents"
     os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, "decoded_region_map.png"))
+    # Create unique filename with variable and timestamp
+    time_str_file = np.datetime_as_string(time_np, unit='m').replace(':', '-').replace(' ', '_')
+    filename = f"decoded_region_map_{component}_{variable}_{time_str_file}.png"
+    plt.savefig(os.path.join(output_dir, filename))
+    print(f"Saved: {os.path.join(output_dir, filename)}")
     plt.show()
 
 
@@ -353,7 +357,11 @@ def _plot_region_only(
 
     output_dir = "examples/latents"
     os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, "decoded_region_only_map.png"))
+    # Create unique filename with variable and timestamp
+    time_str_file = time_str.replace(':', '-').replace(' ', '_') if time_str != "NaT" else "unknown"
+    filename = f"decoded_region_only_{component}_{variable}_{time_str_file}.png"
+    plt.savefig(os.path.join(output_dir, filename))
+    print(f"Saved: {os.path.join(output_dir, filename)}")
     plt.show()
 
 
@@ -460,7 +468,11 @@ def _plot_region_with_location(
 
     output_dir = "examples/latents"
     os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, "decoded_region_with_location.png"))
+    # Create unique filename with variable and timestamp
+    time_str_file = time_str.replace(':', '-').replace(' ', '_') if time_str != "NaT" else "unknown"
+    filename = f"decoded_region_with_location_{component}_{variable}_{time_str_file}.png"
+    plt.savefig(os.path.join(output_dir, filename))
+    print(f"Saved: {os.path.join(output_dir, filename)}")
     plt.show()
 
 
@@ -663,7 +675,10 @@ def _plot_patchiness_comparison(
 
     output_dir = "examples/latents"
     os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, "patchiness_comparison.png"), dpi=150)
+    # Create unique filename with variable and component
+    filename = f"patchiness_comparison_{component}_{variable}.png"
+    plt.savefig(os.path.join(output_dir, filename), dpi=150)
+    print(f"Saved: {os.path.join(output_dir, filename)}")
     plt.show()
 
 
