@@ -18,7 +18,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import xarray as xr
-from scipy.interpolate import RegularGridInterpolator
 from aurora import Aurora, AuroraSmall, Batch, Metadata
 
 # Path to downloaded ERA5 data
@@ -106,12 +105,30 @@ def run_forward_passes(model: Aurora, static_ds, surf_ds, atmos_ds, device: torc
     return preds
 
 
-def visualize_simple(preds, surf_ds, output_dir: Path):
-    """Visualize predictions using the simple Aurora demo logic.
+def visualize_regional(preds, surf_ds, output_dir: Path):
+    """Visualize regional predictions vs ground truth for Europe.
     
-    Uses fixed vmin/vmax and no geographic extent.
+    Shows only Prediction and Ground Truth (2 panels per timestep).
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Europe bounds
+    lat_min_eu, lat_max_eu = 30, 70
+    lon_min_eu, lon_max_eu = -30, 50
+    
+    lat = surf_ds.latitude.values
+    lon = surf_ds.longitude.values
+    
+    # Wrap longitude from 0-360 to -180-180
+    lon_wrapped = ((lon + 180) % 360) - 180
+    lon_order = np.argsort(lon_wrapped)
+    lon_sorted = lon_wrapped[lon_order]
+    
+    # Find indices for region
+    lat_mask = (lat >= lat_min_eu) & (lat <= lat_max_eu)
+    lon_mask = (lon_sorted >= lon_min_eu) & (lon_sorted <= lon_max_eu)
+    lat_idx = np.where(lat_mask)[0]
+    lon_idx = np.where(lon_mask)[0]
     
     n_preds = len(preds)
     fig, ax = plt.subplots(n_preds, 2, figsize=(12, 6.5))
@@ -119,100 +136,59 @@ def visualize_simple(preds, surf_ds, output_dir: Path):
     for i in range(n_preds):
         pred = preds[i]
         
-        # Aurora prediction (left column)
-        ax[i, 0].imshow(pred.surf_vars["2t"][0, 0].numpy() - 273.15, vmin=-50, vmax=50, cmap="RdYlBu_r")
-        ax[i, 0].set_ylabel(str(pred.metadata.time[0]))
-        if i == 0:
-            ax[i, 0].set_title("Aurora Prediction")
-        ax[i, 0].set_xticks([])
-        ax[i, 0].set_yticks([])
-        
-        # ERA5 ground truth (right column)
-        # Prediction at step i corresponds to ERA5 timestep (2 + i)
-        # Because: step 0 predicts timestep 2, step 1 predicts timestep 3, etc.
-        ax[i, 1].imshow(surf_ds["t2m"][2 + i].values - 273.15, vmin=-50, vmax=50, cmap="RdYlBu_r")
-        if i == 0:
-            ax[i, 1].set_title("ERA5")
-        ax[i, 1].set_xticks([])
-        ax[i, 1].set_yticks([])
-    
-    plt.tight_layout()
-    
-    output_path = output_dir / "2_aurora_simple_comparison.png"
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
-    
-    print(f"\nSimple comparison saved to: {output_path}")
-
-
-def visualize_with_error(preds, surf_ds, output_dir: Path):
-    """Visualize predictions with error (difference) plot.
-    
-    Uses fixed vmin/vmax for temperature, symmetric for error.
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    n_preds = len(preds)
-    fig, ax = plt.subplots(n_preds, 3, figsize=(15, 6.5))
-    
-    for i in range(n_preds):
-        pred = preds[i]
-        
         pred_t2m = pred.surf_vars["2t"][0, 0].numpy() - 273.15
         era5_t2m_raw = surf_ds["t2m"][2 + i].values - 273.15
         
-        # Handle grid mismatch by interpolating ERA5 to prediction grid
-        if era5_t2m_raw.shape != pred_t2m.shape:
-            lat_pred = pred.metadata.lat.numpy()
-            lon_pred = pred.metadata.lon.numpy()
-            lat_era5 = surf_ds.latitude.values
-            lon_era5 = surf_ds.longitude.values
-            
-            # Create interpolator (ERA5 lat is descending 90 to -90)
-            interp = RegularGridInterpolator(
-                (lat_era5[::-1], lon_era5),
-                era5_t2m_raw[::-1],
-                bounds_error=False, 
-                fill_value=np.nan
-            )
-            lon_grid, lat_grid = np.meshgrid(lon_pred, lat_pred)
-            era5_t2m = interp((lat_grid, lon_grid))
+        # Use 720 latitude points directly (no interpolation)
+        if era5_t2m_raw.shape[0] == 721 and pred_t2m.shape[0] == 720:
+            era5_t2m = era5_t2m_raw[:720, :]
         else:
             era5_t2m = era5_t2m_raw
         
-        error = pred_t2m - era5_t2m
+        # Sort by longitude and extract Europe region
+        pred_sorted = pred_t2m[:, lon_order]
+        era5_sorted = era5_t2m[:, lon_order]
+        
+        pred_europe = pred_sorted[lat_idx[0]:lat_idx[-1]+1, lon_idx[0]:lon_idx[-1]+1]
+        era5_europe = era5_sorted[lat_idx[0]:lat_idx[-1]+1, lon_idx[0]:lon_idx[-1]+1]
+        
+        # Common color scale
+        vmin = min(pred_europe.min(), era5_europe.min())
+        vmax = max(pred_europe.max(), era5_europe.max())
         
         # Aurora prediction (left column)
-        ax[i, 0].imshow(pred_t2m, vmin=-50, vmax=50, cmap="RdYlBu_r")
+        ax[i, 0].imshow(
+            pred_europe,
+            extent=[lon_min_eu, lon_max_eu, lat_min_eu, lat_max_eu],
+            origin="upper",
+            vmin=vmin, vmax=vmax,
+            cmap="RdYlBu_r"
+        )
         ax[i, 0].set_ylabel(str(pred.metadata.time[0]))
         if i == 0:
-            ax[i, 0].set_title("Aurora Prediction")
-        ax[i, 0].set_xticks([])
-        ax[i, 0].set_yticks([])
+            ax[i, 0].set_title("Prediction")
+        ax[i, 0].set_xlabel("Longitude")
         
-        # ERA5 ground truth (middle column)
-        ax[i, 1].imshow(era5_t2m, vmin=-50, vmax=50, cmap="RdYlBu_r")
+        # ERA5 ground truth (right column)
+        ax[i, 1].imshow(
+            era5_europe,
+            extent=[lon_min_eu, lon_max_eu, lat_min_eu, lat_max_eu],
+            origin="upper",
+            vmin=vmin, vmax=vmax,
+            cmap="RdYlBu_r"
+        )
         if i == 0:
-            ax[i, 1].set_title("ERA5")
-        ax[i, 1].set_xticks([])
-        ax[i, 1].set_yticks([])
-        
-        # Error (right column)
-        error_max = np.abs(error).max()
-        im = ax[i, 2].imshow(error, vmin=-error_max, vmax=error_max, cmap="RdBu_r")
-        if i == 0:
-            ax[i, 2].set_title("Error (Pred - ERA5)")
-        ax[i, 2].set_xticks([])
-        ax[i, 2].set_yticks([])
-        plt.colorbar(im, ax=ax[i, 2], label="°C")
+            ax[i, 1].set_title("Ground Truth (ERA5)")
+        ax[i, 1].set_xlabel("Longitude")
     
+    plt.suptitle("Aurora Forward Pass: 2m Temperature (Europe)", fontsize=14, fontweight="bold")
     plt.tight_layout()
     
-    output_path = output_dir / "2_aurora_simple_with_error.png"
+    output_path = output_dir / "2_aurora_regional_comparison.png"
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
     
-    print(f"Comparison with error saved to: {output_path}")
+    print(f"\nRegional comparison saved to: {output_path}")
 
 
 def main():
@@ -234,11 +210,8 @@ def main():
     # Run forward passes (2 steps to match demo)
     preds = run_forward_passes(model, static_ds, surf_ds, atmos_ds, device, n_steps=2)
     
-    # Visualize - simple version (matching demo logic)
-    visualize_simple(preds, surf_ds, OUTPUT_DIR)
-    
-    # Visualize - with error plot
-    visualize_with_error(preds, surf_ds, OUTPUT_DIR)
+    # Visualize regional prediction vs ground truth
+    visualize_regional(preds, surf_ds, OUTPUT_DIR)
     
     print("\nDone!")
 

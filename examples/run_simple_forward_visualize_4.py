@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Simple Aurora forward pass with Cartopy visualization.
+"""Simple Aurora forward pass with Cartopy visualization (No Interpolation).
 
 This script:
 1. Loads ERA5 sample data
 2. Runs a forward pass with AuroraSmallPretrained
 3. Visualizes predictions with Cartopy (coastlines, borders, projections)
 4. Supports regional plotting with configurable bounds
+5. No interpolation - uses 720 latitude points directly
 
 Based on the Cartopy plotting logic with proper geographic projections.
 """
@@ -316,7 +317,7 @@ def plot_comparison_cartopy(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Aurora forward pass with Cartopy visualization")
+    parser = argparse.ArgumentParser(description="Aurora forward pass with Cartopy visualization (No Interpolation)")
     parser.add_argument("--output-dir", type=str, default="examples/forward_pass_plots")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     # Default to Europe region
@@ -351,7 +352,7 @@ def main():
     prediction = prediction.to("cpu")
     batch = batch.to("cpu")
     
-    # Get lat/lon from prediction
+    # Get lat/lon from prediction (720 points, no interpolation)
     lat_pred = prediction.metadata.lat.numpy()
     lon_pred = prediction.metadata.lon.numpy()
     
@@ -359,18 +360,23 @@ def main():
     pred_t2m = prediction.surf_vars["2t"][0, 0].numpy()
     
     # Get ERA5 ground truth (timestep 2 corresponds to prediction)
+    # Use only first 720 latitude points to match prediction grid (no interpolation)
     era5_t2m_raw = surf_ds["t2m"][2].values
     lat_era5 = surf_ds.latitude.values
-    lon_era5 = surf_ds.longitude.values
+    
+    print(f"  Prediction shape: {pred_t2m.shape}")
+    print(f"  ERA5 raw shape: {era5_t2m_raw.shape}")
+    print(f"  Prediction lat: {len(lat_pred)}, ERA5 lat: {len(lat_era5)}")
     
     # Use 720 latitude points directly (no interpolation)
     # ERA5 has 721 points, prediction has 720 - just use first 720 from ERA5
     if era5_t2m_raw.shape[0] == 721 and pred_t2m.shape[0] == 720:
-        print(f"  Grid mismatch: ERA5 {era5_t2m_raw.shape} vs Prediction {pred_t2m.shape}")
         print("  Using first 720 latitude points from ERA5 (no interpolation)")
         era5_t2m = era5_t2m_raw[:720, :]
     else:
         era5_t2m = era5_t2m_raw
+    
+    print(f"  Final ERA5 shape: {era5_t2m.shape}")
     
     # Plot single prediction
     plot_temperature_cartopy(
@@ -378,7 +384,7 @@ def main():
         lat=lat_pred,
         lon=lon_pred,
         title=f"Aurora Prediction: 2m Temperature - {prediction.metadata.time[0]}",
-        output_path=output_dir / f"3_aurora_cartopy_pred_{region_suffix}.png",
+        output_path=output_dir / f"4_aurora_cartopy_pred_{region_suffix}.png",
         region=region,
         vmin=args.vmin,
         vmax=args.vmax,
@@ -391,7 +397,7 @@ def main():
         lat=lat_pred,
         lon=lon_pred,
         pred_time=str(prediction.metadata.time[0]),
-        output_path=output_dir / f"3_aurora_cartopy_comparison_{region_suffix}.png",
+        output_path=output_dir / f"4_aurora_cartopy_comparison_{region_suffix}.png",
         region=region,
         vmin=args.vmin,
         vmax=args.vmax,

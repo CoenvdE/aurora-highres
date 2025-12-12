@@ -25,11 +25,29 @@ def calculate_statistics(zarr_path, output_path=None, chunk_size=100):
     # Open zarr dataset
     ds = zarr.open(zarr_path, mode='r')
     
-    # Get all variable names (exclude coordinates like 'time', 'lat', 'lon')
-    coord_names = {'time', 'lat', 'lon', 'latitude', 'longitude', 'level'}
-    var_names = [key for key in ds.keys() if key not in coord_names]
+    # Get all variable names (exclude coordinates and metadata)
+    coord_names = {
+        'time', 'lat', 'lon', 'latitude', 'longitude', 'level',
+        'valid_time', 'step', 'number', 'surface', 'isobaricInhPa',
+        'heightAboveGround', 'date', 'timestamp'
+    }
     
-    print(f"Found {len(var_names)} variables: {var_names}")
+    # Filter variables: only keep arrays with 3+ dimensions (time, lat, lon or time, level, lat, lon)
+    var_names = []
+    for key in ds.keys():
+        if key in coord_names:
+            continue
+        var_array = ds[key]
+        # Only process variables with at least 3 dimensions (spatial + time data)
+        if hasattr(var_array, 'shape') and len(var_array.shape) >= 3:
+            var_names.append(key)
+    
+    print(f"Found {len(var_names)} data variables: {var_names}")
+    
+    # Show excluded variables for reference
+    excluded = [key for key in ds.keys() if key not in var_names]
+    if excluded:
+        print(f"Excluded metadata/coordinates: {excluded}")
     
     statistics = {}
     
