@@ -244,10 +244,9 @@ def main() -> None:
     print(f"Region: lat=[{args.lat_min}, {args.lat_max}], lon=[{args.lon_min}, {args.lon_max}]")
     print(f"Output: {output_zarr}")
     
-    # Collect data per variable
-    surface_data = {var: [] for var in surf_vars}
-    atmos_data = {var: [] for var in atmos_vars}
-    valid_timesteps = []
+    # Track progress
+    valid_count = 0
+    zarr_initialized = False
     
     for i, ts in enumerate(all_timesteps):
         if i % 100 == 0:
@@ -296,70 +295,64 @@ def main() -> None:
             print(f"  ⊘ Skipping {ts} (missing atmospheric data)")
             continue
         
-        # Add to lists
+        # Create single-timestep dataset
+        time_coord = np.array([ts], dtype="datetime64[ns]")
+        data_vars = {}
+        
         for var in surf_vars:
-            surface_data[var].append(surf_arrays[var])
+            da = surf_arrays[var].expand_dims("time").assign_coords(time=time_coord)
+            data_vars[var] = da
+        
         for var in atmos_vars:
-            atmos_data[var].append(atmos_arrays[var])
-        valid_timesteps.append(ts)
+            da = atmos_arrays[var].expand_dims("time").assign_coords(time=time_coord)
+            data_vars[var] = da
+        
+        ds_timestep = xr.Dataset(data_vars)
+        
+        # Initialize Zarr on first valid timestep, then append
+        if not zarr_initialized:
+            # Add metadata on first write
+            ds_timestep.attrs["region_lat_min"] = args.lat_min
+            ds_timestep.attrs["region_lat_max"] = args.lat_max
+            ds_timestep.attrs["region_lon_min"] = args.lon_min
+            ds_timestep.attrs["region_lon_max"] = args.lon_max
+            ds_timestep.attrs["year"] = args.year
+            ds_timestep.attrs["created"] = datetime.now().isoformat()
+            ds_timestep.attrs["source"] = "ECMWF HRES"
+            ds_timestep.attrs["description"] = f"HRES analysis data for {args.year}"
+            
+            # Set up encoding for efficient access
+            encoding = {}
+            for var in ds_timestep.data_vars:
+                encoding[var] = {
+                    "dtype": "float32",
+                    "chunks": tuple(
+                        1 if dim == "time" else ds_timestep[var].sizes[dim]
+                        for dim in ds_timestep[var].dims
+                    ),
+                }
+            
+            print(f"  Initializing Zarr store: {output_zarr}")
+            ds_timestep.to_zarr(str(output_zarr), mode="w", encoding=encoding)
+            zarr_initialized = True
+        else:
+            # Append subsequent timesteps
+            ds_timestep.to_zarr(str(output_zarr), append_dim="time")
+        
+        valid_count += 1
+        
+        # Explicitly free memory
+        del surf_arrays, atmos_arrays, ds_timestep, data_vars
     
-    if not valid_timesteps:
+    if valid_count == 0:
         print("No valid timesteps found!")
         return
-    
-    print(f"\n✓ Loaded {len(valid_timesteps)} timesteps successfully")
-    
-    # Create xarray dataset
-    print("Creating xarray Dataset...")
-    
-    time_coord = np.array(valid_timesteps, dtype="datetime64[ns]")
-    
-    data_vars = {}
-    
-    for var in surf_vars:
-        stacked = xr.concat(surface_data[var], dim="time")
-        stacked = stacked.assign_coords(time=time_coord)
-        data_vars[var] = stacked
-    
-    for var in atmos_vars:
-        stacked = xr.concat(atmos_data[var], dim="time")
-        stacked = stacked.assign_coords(time=time_coord)
-        data_vars[var] = stacked
-    
-    ds = xr.Dataset(data_vars)
-    
-    # Add metadata
-    ds.attrs["region_lat_min"] = args.lat_min
-    ds.attrs["region_lat_max"] = args.lat_max
-    ds.attrs["region_lon_min"] = args.lon_min
-    ds.attrs["region_lon_max"] = args.lon_max
-    ds.attrs["year"] = args.year
-    ds.attrs["created"] = datetime.now().isoformat()
-    ds.attrs["source"] = "ECMWF HRES"
-    ds.attrs["description"] = f"HRES analysis data for {args.year}"
-    
-    print(f"Dataset: {ds}")
-    
-    # Set up encoding for efficient access
-    encoding = {}
-    for var in ds.data_vars:
-        encoding[var] = {
-            "dtype": "float32",
-            "chunks": tuple(
-                1 if dim == "time" else ds[var].sizes[dim]
-                for dim in ds[var].dims
-            ),
-        }
-    
-    # Save to Zarr
-    print(f"Saving to {output_zarr}...")
-    ds.to_zarr(str(output_zarr), mode="w", encoding=encoding)
     
     print(f"\n{'='*60}")
     print(f"✓ Year {args.year} conversion complete!")
     print(f"  Output: {output_zarr}")
-    print(f"  Timesteps: {len(valid_timesteps)}")
-    print(f"  Variables: {list(ds.data_vars)}")
+    print(f"  Timesteps: {valid_count}")
+    print(f"  Variables: {surf_vars + atmos_vars}")
     print(f"{'='*60}")
 
 
