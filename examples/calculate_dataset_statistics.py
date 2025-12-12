@@ -38,8 +38,8 @@ def calculate_statistics(zarr_path, output_path=None, chunk_size=100):
         if key in coord_names:
             continue
         var_array = ds[key]
-        # Only process variables with at least 3 dimensions (spatial + time data)
-        if hasattr(var_array, 'shape') and len(var_array.shape) >= 3:
+        # Process variables with at least 2 dimensions (supports both static 2D and temporal 3D+ data)
+        if hasattr(var_array, 'shape') and len(var_array.shape) >= 2:
             var_names.append(key)
     
     print(f"Found {len(var_names)} data variables: {var_names}")
