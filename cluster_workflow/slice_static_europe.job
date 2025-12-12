@@ -29,7 +29,7 @@ cd $CODE_DIR
 python examples/slice_static_to_region.py \
     --input "$DATA_DIR/static_hres.zarr" \
     --output "$DATA_DIR/static_hres_europe.zarr" \
-    --hres-zarr "$DATA_DIR/hres_europe_2018_2020.zarr" \
+    --hres-zarr "$DATA_DIR/hres_europe_2018.zarr" \
     --overwrite
 
 echo ""
@@ -38,7 +38,7 @@ echo "=== VERIFYING GRID ALIGNMENT ==="
 # Verify static and HRES grids are aligned, plot static variables
 python examples/verify_static_hres_alignment.py \
     --static-zarr "$DATA_DIR/static_hres_europe.zarr" \
-    --hres-zarr "$DATA_DIR/hres_europe_2018_2020.zarr" \
+    --hres-zarr "$DATA_DIR/hres_europe_2018.zarr" \
     --output-dir "$DATA_DIR/static_verification_plots"
 
 echo ""
