@@ -1,0 +1,50 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
+#SBATCH --job-name=CalcStatistics
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=04:00:00
+#SBATCH --output=cluster_workflow/jobs/slurm_outputs/calculate_statistics_%A.out
+#SBATCH --error=cluster_workflow/jobs/slurm_outputs/calculate_statistics_%A.err
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+source activate aurora-highres
+CODE_DIR="$HOME/aurora-highres"
+DATA_DIR="/projects/prjs1858"
+
+echo "=== CALCULATING DATASET STATISTICS ==="
+echo "CODE_DIR: $CODE_DIR"
+echo "DATA_DIR: $DATA_DIR"
+
+cd $CODE_DIR
+
+# Calculate statistics for HRES Europe 2018 dataset
+echo ""
+echo "Processing HRES Europe 2018..."
+python examples/calculate_dataset_statistics.py \
+    --zarr-path "$DATA_DIR/hres_europe_2018.zarr" \
+    --chunk-size 100
+
+# Calculate statistics for static HRES Europe dataset
+echo ""
+echo "Processing Static HRES Europe..."
+python examples/calculate_dataset_statistics.py \
+    --zarr-path "$DATA_DIR/static_hres_europe.zarr" \
+    --chunk-size 100
+
+# If you have merged datasets or other years, add them here:
+# echo ""
+# echo "Processing HRES Europe 2018-2020..."
+# python examples/calculate_dataset_statistics.py \
+#     --zarr-path "$DATA_DIR/hres_europe_2018_2020.zarr" \
+#     --chunk-size 100
+
+echo ""
+echo "=== COMPLETE ==="
+echo "Statistics saved to $DATA_DIR/"
+
