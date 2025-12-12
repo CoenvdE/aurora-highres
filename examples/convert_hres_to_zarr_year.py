@@ -31,8 +31,6 @@ DEFAULT_LAT_MAX = 70.0
 DEFAULT_LON_MIN = -30.0
 DEFAULT_LON_MAX = 50.0
 
-# Aurora uses 13 pressure levels (hPa) - filter HRES to match
-AURORA_LEVELS = [50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000]
 
 
 def iterate_timesteps(year: int) -> Iterator[datetime]:
@@ -230,9 +228,8 @@ def main() -> None:
     
     output_zarr = args.output_dir / f"hres_europe_{args.year}.zarr"
     
-    # Surface and atmospheric variables
+    # Surface variables only
     surf_vars = ["2t", "msl"]
-    atmos_vars = ["t"]
     
     # Get all timesteps for this year
     all_timesteps = list(iterate_timesteps(args.year))
@@ -275,25 +272,6 @@ def main() -> None:
             print(f"  ⊘ Skipping {ts} (missing surface data)")
             continue
         
-        # Load atmospheric variables
-        atmos_arrays = {}
-        for var in atmos_vars:
-            grib_path = find_grib_files(args.hres_dir, datetime(date.year, date.month, date.day), var, is_atmos=True, hour=hour)
-            if grib_path is None:
-                missing = True
-                break
-            da = load_grib_atmos(grib_path, var)
-            if da is None:
-                missing = True
-                break
-            da_cropped = crop_to_region(da, args.lat_min, args.lat_max, args.lon_min, args.lon_max)
-            level_dim = "isobaricInhPa" if "isobaricInhPa" in da_cropped.dims else "level"
-            da_cropped = da_cropped.sel({level_dim: AURORA_LEVELS})
-            atmos_arrays[var] = da_cropped
-        
-        if missing:
-            print(f"  ⊘ Skipping {ts} (missing atmospheric data)")
-            continue
         
         # Create single-timestep dataset
         time_coord = np.array([ts], dtype="datetime64[ns]")
@@ -303,9 +281,6 @@ def main() -> None:
             da = surf_arrays[var].expand_dims("time").assign_coords(time=time_coord)
             data_vars[var] = da
         
-        for var in atmos_vars:
-            da = atmos_arrays[var].expand_dims("time").assign_coords(time=time_coord)
-            data_vars[var] = da
         
         ds_timestep = xr.Dataset(data_vars)
         
@@ -342,7 +317,7 @@ def main() -> None:
         valid_count += 1
         
         # Explicitly free memory
-        del surf_arrays, atmos_arrays, ds_timestep, data_vars
+        del surf_arrays, ds_timestep, data_vars
     
     if valid_count == 0:
         print("No valid timesteps found!")
@@ -352,7 +327,7 @@ def main() -> None:
     print(f"✓ Year {args.year} conversion complete!")
     print(f"  Output: {output_zarr}")
     print(f"  Timesteps: {valid_count}")
-    print(f"  Variables: {surf_vars + atmos_vars}")
+    print(f"  Variables: {surf_vars}")
     print(f"{'='*60}")
 
 
