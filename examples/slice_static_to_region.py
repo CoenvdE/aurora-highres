@@ -21,10 +21,15 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
 import xarray as xr
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 
 def convert_lon_to_minus180_180(ds: xr.Dataset) -> xr.Dataset:

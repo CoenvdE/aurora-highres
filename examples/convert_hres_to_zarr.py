@@ -18,12 +18,17 @@ Output format:
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterator
 
 import numpy as np
 import xarray as xr
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 # Region bounds (must match Aurora latents!)
 DEFAULT_LAT_MIN = 30.0

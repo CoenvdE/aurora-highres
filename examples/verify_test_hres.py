@@ -11,11 +11,16 @@ This script:
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 
 def parse_args() -> argparse.Namespace:

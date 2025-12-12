@@ -20,11 +20,16 @@ from __future__ import annotations
 
 import argparse
 import pickle
+import sys
 from pathlib import Path
 
 import numpy as np
 import xarray as xr
 from huggingface_hub import hf_hub_download
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 
 # HRES 0.1° static pickle from HuggingFace

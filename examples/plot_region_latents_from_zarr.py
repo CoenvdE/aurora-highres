@@ -8,6 +8,7 @@ decodes a single variable, and produces a figure with global context.
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Sequence
@@ -15,6 +16,10 @@ from typing import Callable, Sequence
 import numpy as np
 import torch
 import xarray as xr
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 from aurora.model.decoder import Perceiver3DDecoder
 from aurora.model.util import unpatchify

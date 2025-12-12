@@ -14,11 +14,16 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 
 def verify_grid_alignment(ds_static: xr.Dataset, ds_hres: xr.Dataset) -> bool:

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Tuple
@@ -21,6 +22,10 @@ import numpy as np
 import torch
 import xarray as xr
 import zarr
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 from examples.init_exploring.extract_latents import register_latent_hooks
 from examples.init_exploring.load_era_batch_flexible import (

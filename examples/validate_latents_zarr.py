@@ -10,10 +10,15 @@ Checks:
 """
 
 import argparse
+import sys
 from pathlib import Path
 import numpy as np
 import xarray as xr
 import zarr
+
+# Force unbuffered output for SLURM job logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 
 def print_section(title: str, char: str = "="):
