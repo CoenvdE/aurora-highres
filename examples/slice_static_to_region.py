@@ -176,7 +176,7 @@ def main():
     
     # Load HRES zarr to get target grid
     print(f"\nLoading HRES zarr for target grid: {args.hres_zarr}")
-    hres_ds = xr.open_zarr(args.hres_zarr, consolidated=True)
+    hres_ds = xr.open_zarr(args.hres_zarr, consolidated=False)
     
     # Get HRES coordinates
     hres_lat_name = "latitude" if "latitude" in hres_ds.coords else "lat"
@@ -189,7 +189,7 @@ def main():
     
     # Load global static zarr
     print(f"\nLoading static zarr: {args.input}")
-    ds_static = xr.open_zarr(args.input, consolidated=True)
+    ds_static = xr.open_zarr(args.input, consolidated=False)
     
     print(f"Variables: {list(ds_static.data_vars)}")
     for var_name, var in ds_static.data_vars.items():

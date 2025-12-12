@@ -165,10 +165,10 @@ def main():
     
     # Load datasets
     print(f"\nLoading static: {args.static_zarr}")
-    ds_static = xr.open_zarr(args.static_zarr, consolidated=True)
+    ds_static = xr.open_zarr(args.static_zarr, consolidated=False)
     
     print(f"Loading HRES: {args.hres_zarr}")
-    ds_hres = xr.open_zarr(args.hres_zarr, consolidated=True)
+    ds_hres = xr.open_zarr(args.hres_zarr, consolidated=False)
     
     # Print dataset info
     print(f"\nStatic variables: {list(ds_static.data_vars)}")
