@@ -307,6 +307,13 @@ def main() -> None:
                     ),
                 }
             
+            # Add explicit time encoding to avoid serialization warnings
+            encoding["time"] = {
+                "dtype": "float64",
+                "units": "hours since 1970-01-01T00:00:00",
+                "calendar": "proleptic_gregorian",
+            }
+            
             print(f"  Initializing Zarr store: {output_zarr}")
             ds_timestep.to_zarr(str(output_zarr), mode="w", encoding=encoding)
             zarr_initialized = True
