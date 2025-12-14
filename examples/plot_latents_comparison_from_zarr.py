@@ -534,10 +534,10 @@ def main() -> None:
     # Extract the appropriate data
     if args.mode == "atmos":
         level_idx = list(atmos_levels.numpy()).index(args.level)
-        decoded_field = decoded[0, 0, level_idx].cpu().numpy()
+        decoded_field = decoded[0, 0, level_idx].detach().cpu().numpy()
         print(f"  Selected level {args.level} hPa (index {level_idx})")
     else:
-        decoded_field = decoded[0, 0].cpu().numpy()
+        decoded_field = decoded[0, 0].detach().cpu().numpy()
         if decoded_field.ndim > 2:
             decoded_field = decoded_field.squeeze()
     
