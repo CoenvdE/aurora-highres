@@ -7,6 +7,9 @@ This script:
 3. Visualizes the input and prediction for 2m temperature
 """
 
+import matplotlib
+matplotlib.use('Agg')
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -14,6 +17,15 @@ import numpy as np
 import torch
 import xarray as xr
 from aurora import Aurora, AuroraSmall, Batch, Metadata
+
+# Try to import Cartopy
+try:
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    HAS_CARTOPY = True
+except ImportError:
+    HAS_CARTOPY = False
+    print("WARNING: Cartopy not found. Plotting without map projections.")
 
 # Path to downloaded ERA5 data
 DOWNLOAD_PATH = Path("examples/downloads/era5")
@@ -60,7 +72,7 @@ def load_era5_batch(download_path: Path, device: torch.device) -> Batch:
     print(f"  Grid shape: {batch.metadata.lat.shape[0]} x {batch.metadata.lon.shape[0]}")
     print(f"  Atmospheric levels: {batch.metadata.atmos_levels}")
     
-    return batch.to(device)
+    return batch.to(device), static_ds
 
 
 def load_model(device: torch.device) -> Aurora:
@@ -83,7 +95,7 @@ def run_forward_pass(model: Aurora, batch: Batch) -> Batch:
     return prediction
 
 
-def visualize_results(batch: Batch, prediction: Batch, output_dir: Path):
+def visualize_results(batch: Batch, prediction: Batch, static_ds, output_dir: Path):
     """Visualize regional prediction and ground truth for 2m temperature."""
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -142,37 +154,55 @@ def visualize_results(batch: Batch, prediction: Batch, output_dir: Path):
     vmax_eu = 30   # °C - typical summer maximum for Europe
     
     # Create figure with 2 panels: Prediction and Ground Truth
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    extent = [lon_min_eu, lon_max_eu, lat_min_eu, lat_max_eu]
     
-    im1 = axes[0].imshow(
-        pred_europe,
-        extent=[lon_min_eu, lon_max_eu, lat_min_eu, lat_max_eu],
-        origin="upper",
-        cmap="RdYlBu_r",
-        vmin=vmin_eu, vmax=vmax_eu
-    )
-    axes[0].set_title(f"Prediction: {prediction.metadata.time[0]}")
-    axes[0].set_xlabel("Longitude")
-    axes[0].set_ylabel("Latitude")
-    plt.colorbar(im1, ax=axes[0], label="Temperature (°C)")
+    if HAS_CARTOPY:
+        fig, axes = plt.subplots(
+            1, 2, 
+            figsize=(14, 6),
+            subplot_kw={'projection': ccrs.PlateCarree()}
+        )
+    else:
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     
-    im2 = axes[1].imshow(
-        input_europe,
-        extent=[lon_min_eu, lon_max_eu, lat_min_eu, lat_max_eu],
-        origin="upper",
-        cmap="RdYlBu_r",
-        vmin=vmin_eu, vmax=vmax_eu
-    )
-    axes[1].set_title(f"Ground Truth: {batch.metadata.time[0]}")
-    axes[1].set_xlabel("Longitude")
-    axes[1].set_ylabel("Latitude")
-    plt.colorbar(im2, ax=axes[1], label="Temperature (°C)")
+    data_list = [
+        (pred_europe, f"Prediction: {prediction.metadata.time[0]}"),
+        (input_europe, f"Ground Truth: {batch.metadata.time[0]}")
+    ]
+    
+    for ax, (data, title) in zip(axes, data_list):
+        if HAS_CARTOPY:
+            ax.add_feature(cfeature.LAND, facecolor='lightgray', alpha=0.3, zorder=2)
+            ax.coastlines(resolution='50m', zorder=3)
+            ax.add_feature(cfeature.BORDERS, linestyle=':', zorder=3)
+            im = ax.imshow(
+                data,
+                extent=extent,
+                transform=ccrs.PlateCarree(),
+                origin="upper",
+                cmap="coolwarm",
+                vmin=vmin_eu, vmax=vmax_eu
+            )
+            ax.set_extent(extent, crs=ccrs.PlateCarree())
+        else:
+            im = ax.imshow(
+                data,
+                extent=extent,
+                origin="upper",
+                cmap="coolwarm",
+                vmin=vmin_eu, vmax=vmax_eu
+            )
+            ax.set_xlabel("Longitude")
+            ax.set_ylabel("Latitude")
+        
+        ax.set_title(title)
+        plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05, fraction=0.05, label="Temperature (°C)")
     
     plt.suptitle("Aurora Forward Pass: 2m Temperature (Europe)", fontsize=14, fontweight="bold")
     plt.tight_layout()
     
     output_path = output_dir / "1_aurora_forward_pass_t2m_europe.png"
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
     
     print(f"\nVisualization saved to: {output_path}")
@@ -184,7 +214,7 @@ def main():
     print(f"Using device: {device}")
     
     # Load data
-    batch = load_era5_batch(DOWNLOAD_PATH, device)
+    batch, static_ds = load_era5_batch(DOWNLOAD_PATH, device)
     
     # Load model
     model = load_model(device)
@@ -197,7 +227,7 @@ def main():
     batch = batch.to("cpu")
     
     # Visualize
-    visualize_results(batch, prediction, OUTPUT_DIR)
+    visualize_results(batch, prediction, static_ds, OUTPUT_DIR)
     
     print("\nDone!")
 

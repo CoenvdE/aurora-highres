@@ -12,6 +12,9 @@ This script:
 3. Visualizes predictions vs ERA5 ground truth
 """
 
+import matplotlib
+matplotlib.use('Agg')
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -19,6 +22,15 @@ import numpy as np
 import torch
 import xarray as xr
 from aurora import Aurora, AuroraSmall, Batch, Metadata
+
+# Try to import Cartopy
+try:
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    HAS_CARTOPY = True
+except ImportError:
+    HAS_CARTOPY = False
+    print("WARNING: Cartopy not found. Plotting without map projections.")
 
 # Path to downloaded ERA5 data
 DOWNLOAD_PATH = Path("examples/downloads/era5")
@@ -105,7 +117,7 @@ def run_forward_passes(model: Aurora, static_ds, surf_ds, atmos_ds, device: torc
     return preds
 
 
-def visualize_regional(preds, surf_ds, output_dir: Path):
+def visualize_regional(preds, surf_ds, static_ds, output_dir: Path):
     """Visualize regional predictions vs ground truth for Europe.
     
     Shows only Prediction and Ground Truth (2 panels per timestep).
@@ -131,7 +143,16 @@ def visualize_regional(preds, surf_ds, output_dir: Path):
     lon_idx = np.where(lon_mask)[0]
     
     n_preds = len(preds)
-    fig, ax = plt.subplots(n_preds, 2, figsize=(12, 6.5))
+    extent = [lon_min_eu, lon_max_eu, lat_min_eu, lat_max_eu]
+    
+    if HAS_CARTOPY:
+        fig, ax = plt.subplots(
+            n_preds, 2, 
+            figsize=(14, 6 * n_preds),
+            subplot_kw={'projection': ccrs.PlateCarree()}
+        )
+    else:
+        fig, ax = plt.subplots(n_preds, 2, figsize=(14, 6 * n_preds))
     
     for i in range(n_preds):
         pred = preds[i]
@@ -156,36 +177,47 @@ def visualize_regional(preds, surf_ds, output_dir: Path):
         vmin = -10  # °C
         vmax = 30   # °C
         
-        # Aurora prediction (left column)
-        ax[i, 0].imshow(
-            pred_europe,
-            extent=[lon_min_eu, lon_max_eu, lat_min_eu, lat_max_eu],
-            origin="upper",
-            vmin=vmin, vmax=vmax,
-            cmap="RdYlBu_r"
-        )
-        ax[i, 0].set_ylabel(str(pred.metadata.time[0]))
-        if i == 0:
-            ax[i, 0].set_title("Prediction")
-        ax[i, 0].set_xlabel("Longitude")
+        data_list = [
+            (pred_europe, "Prediction", 0),
+            (era5_europe, "Ground Truth (ERA5)", 1)
+        ]
         
-        # ERA5 ground truth (right column)
-        ax[i, 1].imshow(
-            era5_europe,
-            extent=[lon_min_eu, lon_max_eu, lat_min_eu, lat_max_eu],
-            origin="upper",
-            vmin=vmin, vmax=vmax,
-            cmap="RdYlBu_r"
-        )
-        if i == 0:
-            ax[i, 1].set_title("Ground Truth (ERA5)")
-        ax[i, 1].set_xlabel("Longitude")
+        for data, title, col_idx in data_list:
+            current_ax = ax[i, col_idx] if n_preds > 1 else ax[col_idx]
+            
+            if HAS_CARTOPY:
+                current_ax.add_feature(cfeature.LAND, facecolor='lightgray', alpha=0.3, zorder=2)
+                current_ax.coastlines(resolution='50m', zorder=3)
+                current_ax.add_feature(cfeature.BORDERS, linestyle=':', zorder=3)
+                im = current_ax.imshow(
+                    data,
+                    extent=extent,
+                    transform=ccrs.PlateCarree(),
+                    origin="upper",
+                    vmin=vmin, vmax=vmax,
+                    cmap="coolwarm"
+                )
+                current_ax.set_extent(extent, crs=ccrs.PlateCarree())
+            else:
+                im = current_ax.imshow(
+                    data,
+                    extent=extent,
+                    origin="upper",
+                    vmin=vmin, vmax=vmax,
+                    cmap="coolwarm"
+                )
+                current_ax.set_xlabel("Longitude")
+            
+            if col_idx == 0:
+                current_ax.set_ylabel(str(pred.metadata.time[0]))
+            if i == 0:
+                current_ax.set_title(title)
     
     plt.suptitle("Aurora Forward Pass: 2m Temperature (Europe)", fontsize=14, fontweight="bold")
     plt.tight_layout()
     
     output_path = output_dir / "2_aurora_regional_comparison.png"
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
     
     print(f"\nRegional comparison saved to: {output_path}")
@@ -211,7 +243,7 @@ def main():
     preds = run_forward_passes(model, static_ds, surf_ds, atmos_ds, device, n_steps=2)
     
     # Visualize regional prediction vs ground truth
-    visualize_regional(preds, surf_ds, OUTPUT_DIR)
+    visualize_regional(preds, surf_ds, static_ds, OUTPUT_DIR)
     
     print("\nDone!")
 

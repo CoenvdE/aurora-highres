@@ -167,8 +167,9 @@ def plot_temperature_cartopy(
     
     if HAS_CARTOPY:
         ax = plt.axes(projection=ccrs.PlateCarree())
-        ax.coastlines(resolution='50m')
-        ax.add_feature(cfeature.BORDERS, linestyle=':')
+        ax.add_feature(cfeature.LAND, facecolor='lightgray', alpha=0.3, zorder=2)
+        ax.coastlines(resolution='50m', zorder=3)
+        ax.add_feature(cfeature.BORDERS, linestyle=':', zorder=3)
         
         im = ax.imshow(
             temp_plot, 
@@ -276,8 +277,9 @@ def plot_comparison_cartopy(
     
     for ax, (data, title, cmap, v_min, v_max) in zip(axes, data_list):
         if HAS_CARTOPY:
-            ax.coastlines(resolution='50m')
-            ax.add_feature(cfeature.BORDERS, linestyle=':')
+            ax.add_feature(cfeature.LAND, facecolor='lightgray', alpha=0.3, zorder=2)
+            ax.coastlines(resolution='50m', zorder=3)
+            ax.add_feature(cfeature.BORDERS, linestyle=':', zorder=3)
             im = ax.imshow(
                 data, 
                 extent=extent, 
