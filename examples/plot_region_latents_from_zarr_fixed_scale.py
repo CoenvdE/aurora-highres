@@ -217,7 +217,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--zarr-path",
         type=Path,
-        default=Path("examples/latents_europe_2018_2020.zarr"),
+        default=Path("/projects/prjs1858/latents_europe_2018_2020.zarr"),
         help="Path to the latents Zarr store",
     )
     parser.add_argument(
@@ -399,6 +399,12 @@ def main() -> None:
             # Handle case where there's an extra dim from surface levels=1
             if region_field.dim() > 2:
                 region_field = region_field.squeeze(0)
+        
+        # Convert temperature from Kelvin to Celsius
+        # Temperature variables: '2t' (surface), 't' (atmospheric)
+        if args.var_name in ['2t', 't']:
+            print(f"  Converting temperature from Kelvin to Celsius")
+            region_field = region_field - 273.15
         
         # USE FIXED COLOR LIMITS instead of computing them
         color_limits = (args.vmin, args.vmax)
