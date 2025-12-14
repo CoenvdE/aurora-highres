@@ -261,19 +261,31 @@ def load_era5_ground_truth(
     
     # Load data based on mode
     if mode == "surface":
-        # Map variable names (2t -> t2m, etc.)
-        var_map = {'2t': 't2m', '10u': 'u10', '10v': 'v10', 'msl': 'msl'}
-        era5_var = var_map.get(var_name, var_name)
+        # HRES and ERA5 may have different variable names
+        # HRES uses: '2t', 'msl' (Aurora naming)
+        # ERA5 uses: 't2m', 'msl', 'u10', 'v10' (ECMWF naming)
+        # Try Aurora naming first (for HRES), then ECMWF naming (for ERA5)
+        var_map = {'2t': ['2t', 't2m'], '10u': ['10u', 'u10'], '10v': ['10v', 'v10'], 'msl': ['msl']}
+        
+        # Try to find the variable
+        era5_var = None
+        for candidate in var_map.get(var_name, [var_name]):
+            if candidate in ds_time.data_vars:
+                era5_var = candidate
+                break
+        
+        if era5_var is None:
+            raise KeyError(f"Variable {var_name} not found. Available: {list(ds_time.data_vars)}")
         
         data = ds_time[era5_var].values
         data_region = data[lat_mask, :][:, lon_mask]
     else:  # atmos
-        # Map variable names if needed
-        var_map = {'t': 't', 'u': 'u', 'v': 'v', 'q': 'q', 'z': 'z'}
-        era5_var = var_map.get(var_name, var_name)
+        # Atmospheric variables (same naming in ERA5)
+        era5_var = var_name
         
-        # Select pressure level
-        ds_level = ds_time.sel(pressure_level=level)
+        # Select pressure level (ERA5 uses 'level' not 'pressure_level')
+        level_dim = 'level' if 'level' in ds_time.dims else 'pressure_level'
+        ds_level = ds_time.sel({level_dim: level})
         data = ds_level[era5_var].values
         data_region = data[lat_mask, :][:, lon_mask]
     
