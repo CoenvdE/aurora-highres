@@ -152,9 +152,9 @@ def visualize_regional(preds, surf_ds, output_dir: Path):
         pred_europe = pred_sorted[lat_idx[0]:lat_idx[-1]+1, lon_idx[0]:lon_idx[-1]+1]
         era5_europe = era5_sorted[lat_idx[0]:lat_idx[-1]+1, lon_idx[0]:lon_idx[-1]+1]
         
-        # Common color scale
-        vmin = min(pred_europe.min(), era5_europe.min())
-        vmax = max(pred_europe.max(), era5_europe.max())
+        # Use consistent global color scale for comparability
+        vmin = -10  # °C
+        vmax = 30   # °C
         
         # Aurora prediction (left column)
         ax[i, 0].imshow(

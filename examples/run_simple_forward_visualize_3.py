@@ -176,7 +176,6 @@ def plot_temperature_cartopy(
             transform=ccrs.PlateCarree(),
             cmap='coolwarm', 
             origin='upper', 
-            interpolation='bilinear', 
             vmin=vmin, 
             vmax=vmax
         )
@@ -285,7 +284,6 @@ def plot_comparison_cartopy(
                 transform=ccrs.PlateCarree(),
                 cmap=cmap, 
                 origin='upper', 
-                interpolation='bilinear',
                 vmin=v_min, 
                 vmax=v_max
             )
@@ -324,8 +322,8 @@ def main():
     parser.add_argument("--lon-max", type=float, default=45.0)
     parser.add_argument("--lat-min", type=float, default=30.0)
     parser.add_argument("--lat-max", type=float, default=75.0)
-    parser.add_argument("--vmin", type=float, default=None, help="Min temperature for color scale")
-    parser.add_argument("--vmax", type=float, default=None, help="Max temperature for color scale")
+    parser.add_argument("--vmin", type=float, default=-10.0, help="Min temperature for color scale (°C)")
+    parser.add_argument("--vmax", type=float, default=30.0, help="Max temperature for color scale (°C)")
     
     args = parser.parse_args()
     

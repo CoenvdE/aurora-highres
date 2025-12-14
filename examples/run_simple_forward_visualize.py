@@ -137,9 +137,9 @@ def visualize_results(batch: Batch, prediction: Batch, output_dir: Path):
     input_europe = input_t2m_c_sorted[lat_idx_in[0]:lat_idx_in[-1]+1, lon_idx_in[0]:lon_idx_in[-1]+1]
     pred_europe = pred_t2m_c_sorted[lat_idx_pred[0]:lat_idx_pred[-1]+1, lon_idx_pred[0]:lon_idx_pred[-1]+1]
     
-    # Use local min/max for color scale
-    vmin_eu = min(input_europe.min(), pred_europe.min())
-    vmax_eu = max(input_europe.max(), pred_europe.max())
+    # Use consistent global color scale for comparability
+    vmin_eu = -10  # °C - typical winter minimum for Europe
+    vmax_eu = 30   # °C - typical summer maximum for Europe
     
     # Create figure with 2 panels: Prediction and Ground Truth
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
