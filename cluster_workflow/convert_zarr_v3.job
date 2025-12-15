@@ -1,0 +1,77 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
+#SBATCH --job-name=ConvertZarrV3
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=04:00:00
+#SBATCH --output=cluster_workflow/jobs/slurm_outputs/convert_zarr_v3_%A.out
+#SBATCH --error=cluster_workflow/jobs/slurm_outputs/convert_zarr_v3_%A.err
+
+# Convert datasets to Zarr v3 with sharding
+# Uses 64-timestep shards with 1-timestep inner chunks for random access
+#
+# IMPORTANT: 
+# - Requires zarr>=3.0.0
+# - Original datasets are PRESERVED (new files created with _v3 suffix)
+# - xarray support for v3 is experimental - test before production use
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+source activate aurora-highres
+CODE_DIR="$HOME/aurora-highres"
+DATA_DIR="/projects/prjs1858"
+
+echo "=== CONVERTING TO ZARR V3 WITH SHARDING ==="
+echo "CODE_DIR: $CODE_DIR"
+echo "DATA_DIR: $DATA_DIR"
+echo ""
+
+cd $CODE_DIR
+export PYTHONPATH=".";
+
+# Check zarr version
+python -c "import zarr; print(f'zarr version: {zarr.__version__}')"
+
+# 1. Convert HRES dataset
+echo ""
+echo "=== Converting HRES dataset to v3 ==="
+python examples/convert_zarr_v3_sharded.py \
+    --input "$DATA_DIR/hres_europe_2018_2020.zarr" \
+    --output "$DATA_DIR/hres_europe_2018_2020_v3.zarr" \
+    --shard-time 64 \
+    --chunk-time 1 \
+    --compressor blosc
+
+# 2. Convert latents dataset
+echo ""
+echo "=== Converting Latents dataset to v3 ==="
+python examples/convert_zarr_v3_sharded.py \
+    --input "$DATA_DIR/latents_europe_2018_2020.zarr" \
+    --output "$DATA_DIR/latents_europe_2018_2020_v3.zarr" \
+    --shard-time 64 \
+    --chunk-time 1 \
+    --compressor blosc
+
+# 3. Convert static dataset (no time dimension)
+echo ""
+echo "=== Converting Static dataset to v3 ==="
+python examples/convert_zarr_v3_sharded.py \
+    --input "$DATA_DIR/static_hres_europe.zarr" \
+    --output "$DATA_DIR/static_hres_europe_v3.zarr" \
+    --shard-time 1 \
+    --chunk-time 1 \
+    --compressor blosc
+
+echo ""
+echo "=== COMPLETE ==="
+echo "Zarr v3 datasets with sharding:"
+echo "  - $DATA_DIR/hres_europe_2018_2020_v3.zarr"
+echo "  - $DATA_DIR/latents_europe_2018_2020_v3.zarr"
+echo "  - $DATA_DIR/static_hres_europe_v3.zarr"
+echo ""
+echo "NOTE: xarray v3 support is experimental."
+echo "Test loading before using in training!"
