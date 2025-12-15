@@ -189,3 +189,4 @@ def main():
 if __name__ == '__main__':
     main()
 
+# python calculate_dataset_statistics.py --zarr-path /path/to/your/zarr/dataset --output /path/to/output.json
