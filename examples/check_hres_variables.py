@@ -34,7 +34,18 @@ def inspect_zarr(zarr_path: str):
         if coord.shape == ():
             print(f"    - value: {values}")
         elif len(values) > 0:
-            print(f"    - range: [{values.min():.4f}, {values.max():.4f}]")
+            # Check if values are numeric for formatting
+            try:
+                vmin = values.min()
+                vmax = values.max()
+                # Try float formatting
+                if isinstance(vmin, (int, float)):
+                    print(f"    - range: [{vmin:.4f}, {vmax:.4f}]")
+                else:
+                    print(f"    - range: [{vmin}, {vmax}]")
+            except (TypeError, AttributeError):
+                print(f"    - range: [{values[0]}, {values[-1]}]")
+            
             if len(values) <= 5:
                 print(f"    - values: {values}")
     
