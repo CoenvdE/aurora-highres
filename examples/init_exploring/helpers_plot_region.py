@@ -384,6 +384,7 @@ def _plot_region_with_location(
     color_limits: tuple[float, float] | None = None,
     origin: str = "upper",
     filename_suffix: str = "",
+    is_temperature: bool = False,
 ) -> None:
     """Plot regional data with a world map showing the region location.
 
@@ -457,13 +458,14 @@ def _plot_region_with_location(
         crs=ccrs.PlateCarree(),
     )
 
+    unit_label = "Temperature (°C)" if is_temperature else "Kelvin (K)"
     fig.colorbar(
         im_region,
         ax=ax_region,
         orientation="horizontal",
         pad=0.04,
         aspect=40,
-    ).set_label("Kelvin (K)")
+    ).set_label(unit_label)
 
     plt.tight_layout()
 
@@ -485,6 +487,7 @@ def _plot_patchiness_comparison(
     variable: str,
     patch_size: int,
     origin: str = "upper",
+    is_temperature: bool = False,
 ) -> None:
     """Diagnostic plot comparing narrow vs wide color scales and showing patch/pixel sizes.
 
@@ -501,7 +504,11 @@ def _plot_patchiness_comparison(
 
     # Compute narrow (data-driven) and wide (fixed) color limits
     vmin_narrow, vmax_narrow = _compute_color_limits(prediction_arr)
-    vmin_wide, vmax_wide = 250.0, 300.0  # Same as Pipeline 1
+    # Wide range: for temperature use -10 to 30°C, otherwise 250-300K
+    if is_temperature:
+        vmin_wide, vmax_wide = -10.0, 30.0
+    else:
+        vmin_wide, vmax_wide = 250.0, 300.0
 
     H, W = prediction_arr.shape
     patch_rows = H // patch_size
@@ -573,12 +580,14 @@ def _plot_patchiness_comparison(
         bbox=dict(boxstyle="round,pad=0.3", facecolor="black", alpha=0.7),
     )
 
+    unit = "°C" if is_temperature else "K"
     ax1.set_title(
-        f"Narrow color range ({vmin_narrow:.1f} - {vmax_narrow:.1f} K)\n"
-        f"Range: {vmax_narrow - vmin_narrow:.1f} K — PATCHINESS VISIBLE\n"
+        f"Narrow color range ({vmin_narrow:.1f} - {vmax_narrow:.1f} {unit})\n"
+        f"Range: {vmax_narrow - vmin_narrow:.1f} {unit} — PATCHINESS VISIBLE\n"
         f"Yellow box = zoomed area in bottom-left"
     )
-    fig.colorbar(im1, ax=ax1, orientation="horizontal", pad=0.05).set_label("Kelvin (K)")
+    unit_label = "Temperature (°C)" if is_temperature else "Kelvin (K)"
+    fig.colorbar(im1, ax=ax1, orientation="horizontal", pad=0.05).set_label(unit_label)
 
     # Top right: Wide color range
     ax2 = fig.add_subplot(2, 2, 2, projection=ccrs.PlateCarree())
@@ -596,10 +605,10 @@ def _plot_patchiness_comparison(
     )
     ax2.set_extent(extent, crs=ccrs.PlateCarree())
     ax2.set_title(
-        f"Wide color range ({vmin_wide:.0f} - {vmax_wide:.0f} K)\n"
-        f"Range: {vmax_wide - vmin_wide:.0f} K — PATCHINESS HIDDEN"
+        f"Wide color range ({vmin_wide:.0f} - {vmax_wide:.0f} {unit})\n"
+        f"Range: {vmax_wide - vmin_wide:.0f} {unit} — PATCHINESS HIDDEN"
     )
-    fig.colorbar(im2, ax=ax2, orientation="horizontal", pad=0.05).set_label("Kelvin (K)")
+    fig.colorbar(im2, ax=ax2, orientation="horizontal", pad=0.05).set_label(unit_label)
 
     # Bottom left: Zoomed crop showing pixels and patch grid
     ax3 = fig.add_subplot(2, 2, 3)
@@ -626,7 +635,7 @@ def _plot_patchiness_comparison(
     )
     ax3.set_xlabel("Pixels (longitude direction)")
     ax3.set_ylabel("Pixels (latitude direction)")
-    fig.colorbar(im3, ax=ax3, orientation="horizontal", pad=0.1).set_label("Kelvin (K)")
+    fig.colorbar(im3, ax=ax3, orientation="horizontal", pad=0.1).set_label(unit_label)
 
     # Bottom right: Size legend / info
     ax4 = fig.add_subplot(2, 2, 4)

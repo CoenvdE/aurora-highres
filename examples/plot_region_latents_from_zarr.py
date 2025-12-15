@@ -263,6 +263,11 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Number of samples to plot (starting from time-idx or first available)",
     )
+    parser.add_argument(
+        "--use-fixed-scale",
+        action="store_true",
+        help="Use fixed color scale (-10 to 30°C) for temperature instead of auto-scaling.",
+    )
     return parser.parse_args()
 
 
@@ -385,7 +390,21 @@ def main() -> None:
             # Handle case where there's an extra dim from surface levels=1
             if region_field.dim() > 2:
                 region_field = region_field.squeeze(0)
-        color_limits = _compute_color_limits(region_field.detach().cpu())
+        
+        # Convert temperature variables to Celsius
+        is_temperature = args.var_name in ["2t", "t"]
+        if is_temperature:
+            region_field = region_field - 273.15
+            print(f"  Converted temperature from Kelvin to Celsius")
+        
+        # Compute color limits based on user preference
+        if args.use_fixed_scale and is_temperature:
+            color_limits = (-10.0, 30.0)
+            print(f"  Using fixed color scale: {color_limits[0]:.1f} to {color_limits[1]:.1f} °C")
+        else:
+            color_limits = _compute_color_limits(region_field.detach().cpu())
+            scale_type = "auto-scaled (percentile)" if is_temperature else "auto-scaled"
+            print(f"  Using {scale_type} color limits: {color_limits[0]:.2f} to {color_limits[1]:.2f} {'°C' if is_temperature else 'units'}")
 
         # Convert extent back to region_bounds format for consistent box drawing
         # extent is (lon_min, lon_max, lat_min, lat_max)
@@ -404,6 +423,7 @@ def main() -> None:
             actual_time,
             color_limits=color_limits,
             origin="upper",  # ERA5 is north to south
+            is_temperature=is_temperature,
         )
 
         if args.show_patchiness_diagnostic:
@@ -414,6 +434,7 @@ def main() -> None:
                 args.var_name,
                 patch_size=model.decoder.patch_size,
                 origin="upper",
+                is_temperature=is_temperature,
             )
 
 
@@ -440,6 +461,10 @@ if __name__ == "__main__":
 # Plot atmospheric variable:
 #   python examples/plot_region_latents_from_zarr.py \
 #       --mode atmos --var-name t --time-idx 0 --level 850
+#
+# Use fixed color scale for temperature (like forward pass scripts):
+#   python examples/plot_region_latents_from_zarr.py \
+#       --time-idx 0 --var-name 2t --use-fixed-scale
 #
 # Use different zarr file:
 #   python examples/plot_region_latents_from_zarr.py \

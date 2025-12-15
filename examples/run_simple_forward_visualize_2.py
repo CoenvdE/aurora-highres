@@ -42,8 +42,8 @@ def load_era5_data(download_path: Path):
     print("Loading ERA5 data...")
     
     static_ds = xr.open_dataset(download_path / "static.nc", engine="netcdf4")
-    surf_ds = xr.open_dataset(download_path / "2020-01-01-surface-level.nc", engine="netcdf4")
-    atmos_ds = xr.open_dataset(download_path / "2020-01-01-atmospheric.nc", engine="netcdf4")
+    surf_ds = xr.open_dataset(download_path / "2018-01-01-surface-level.nc", engine="netcdf4")
+    atmos_ds = xr.open_dataset(download_path / "2018-01-01-atmospheric.nc", engine="netcdf4")
     
     return static_ds, surf_ds, atmos_ds
 

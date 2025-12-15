@@ -28,14 +28,14 @@ SURF_VARS = ("2t", "10u", "10v", "msl")
 ATMOS_VARS = ("z", "u", "v", "t", "q")
 
 VAR_LABELS = {
-    "2t": "2m Temperature (K)",
+    "2t": "2m Temperature (°C)",
     "10u": "10m U-wind (m/s)",
     "10v": "10m V-wind (m/s)",
     "msl": "Mean Sea Level Pressure (Pa)",
     "z": "Geopotential (m²/s²)",
     "u": "U-wind (m/s)",
     "v": "V-wind (m/s)",
-    "t": "Temperature (K)",
+    "t": "Temperature (°C)",
     "q": "Specific Humidity (kg/kg)",
 }
 
@@ -82,6 +82,10 @@ def decode_surface_var(
 
     # Unnormalize
     preds = unnormalise_surf_var(preds, var_name)
+    
+    # Convert temperature to Celsius if it's 2t
+    if var_name == "2t":
+        preds = preds - 273.15
 
     return preds.detach().cpu()
 
@@ -117,6 +121,10 @@ def decode_atmos_var(
 
     # Unnormalize - needs squeeze for surface-like treatment
     preds = unnormalise_atmos_var(preds.squeeze(2), var_name, atmos_levels)
+    
+    # Convert temperature to Celsius if it's t
+    if var_name == "t":
+        preds = preds - 273.15
 
     return preds.detach().cpu()
 

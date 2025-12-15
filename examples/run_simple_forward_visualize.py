@@ -37,8 +37,8 @@ def load_era5_batch(download_path: Path, device: torch.device) -> Batch:
     print("Loading ERA5 data...")
     
     static_ds = xr.open_dataset(download_path / "static.nc", engine="netcdf4")
-    surf_ds = xr.open_dataset(download_path / "2020-01-01-surface-level.nc", engine="netcdf4")
-    atmos_ds = xr.open_dataset(download_path / "2020-01-01-atmospheric.nc", engine="netcdf4")
+    surf_ds = xr.open_dataset(download_path / "2018-01-01-surface-level.nc", engine="netcdf4")
+    atmos_ds = xr.open_dataset(download_path / "2018-01-01-atmospheric.nc", engine="netcdf4")
     
     # Take first two timesteps (00:00 and 06:00) for history
     batch = Batch(

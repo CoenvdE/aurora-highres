@@ -21,7 +21,7 @@ if not (download_path / "static.nc").exists():
                 "land_sea_mask",
                 "soil_type",
             ],
-            "year": "2020",
+            "year": "2018",
             "month": "01",
             "day": "01",
             "time": "00:00",
@@ -32,7 +32,7 @@ if not (download_path / "static.nc").exists():
 print("Static variables downloaded!")
 
 # Download the surface-level variables.
-if not (download_path / "2020-01-01-surface-level.nc").exists():
+if not (download_path / "2018-01-01-surface-level.nc").exists():
     c.retrieve(
         "reanalysis-era5-single-levels",
         {
@@ -43,18 +43,18 @@ if not (download_path / "2020-01-01-surface-level.nc").exists():
                 "10m_v_component_of_wind",
                 "mean_sea_level_pressure",
             ],
-            "year": "2020",
+            "year": "2018",
             "month": "01",
             "day": "01",
             "time": ["00:00", "06:00", "12:00", "18:00"],
             "format": "netcdf",
         },
-        str(download_path / "2020-01-01-surface-level.nc"),
+        str(download_path / "2018-01-01-surface-level.nc"),
     )
 print("Surface-level variables downloaded!")
 
 # Download the atmospheric variables.
-if not (download_path / "2020-01-01-atmospheric.nc").exists():
+if not (download_path / "2018-01-01-atmospheric.nc").exists():
     c.retrieve(
         "reanalysis-era5-pressure-levels",
         {
@@ -81,13 +81,13 @@ if not (download_path / "2020-01-01-atmospheric.nc").exists():
                 "925",
                 "1000",
             ],
-            "year": "2020",
+            "year": "2018",
             "month": "01",
             "day": "01",
             "time": ["00:00", "06:00", "12:00", "18:00"],
             "format": "netcdf",
         },
-        str(download_path / "2020-01-01-atmospheric.nc"),
+        str(download_path / "2018-01-01-atmospheric.nc"),
     )
 print("Atmospheric variables downloaded!")
 
