@@ -432,6 +432,7 @@ def main() -> None:
             actual_time,
             color_limits=color_limits,
             origin="upper",  # ERA5 is north to south
+            filename_suffix="fixed_scale",
         )
 
         if args.show_patchiness_diagnostic:

@@ -383,6 +383,7 @@ def _plot_region_with_location(
     time: np.datetime64 | None,
     color_limits: tuple[float, float] | None = None,
     origin: str = "upper",
+    filename_suffix: str = "",
 ) -> None:
     """Plot regional data with a world map showing the region location.
 
@@ -470,7 +471,8 @@ def _plot_region_with_location(
     os.makedirs(output_dir, exist_ok=True)
     # Create unique filename with variable and timestamp
     time_str_file = time_str.replace(':', '-').replace(' ', '_') if time_str != "NaT" else "unknown"
-    filename = f"decoded_region_with_location_{component}_{variable}_{time_str_file}.png"
+    suffix_part = f"_{filename_suffix}" if filename_suffix else ""
+    filename = f"decoded_region_with_location_{component}_{variable}{suffix_part}_{time_str_file}.png"
     plt.savefig(os.path.join(output_dir, filename))
     print(f"Saved: {os.path.join(output_dir, filename)}")
     plt.show()
