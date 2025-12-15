@@ -299,7 +299,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--zarr-path",
         type=Path,
-        default=Path("/projects/prjs1858/hres_europe_2018_2020.zarr"),
+        default=Path("/projects/prjs1858/latents_europe_2018_2020.zarr"),
         help="Path to the latents Zarr store",
     )
     parser.add_argument(
@@ -403,3 +403,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# usage: python examples/plot_all_vars_from_zarr.py --zarr-path /projects/prjs1858/latents_europe_2018_2020.zarr --time-idx 0 --output-dir plots --atmos-level 850 --plot-all-levels
