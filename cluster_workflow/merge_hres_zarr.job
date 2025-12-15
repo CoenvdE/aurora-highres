@@ -19,6 +19,7 @@ DATA_DIR="/projects/prjs1858"
 echo "DATA_DIR is set to: $DATA_DIR"
 
 cd $CODE_DIR
+export PYTHONPATH=".";
 python examples/merge_hres_zarr.py \
     --input-dir "$DATA_DIR" \
     --years 2018 2019 2020 \

@@ -422,7 +422,7 @@ def main() -> None:
                 f"  ➤ Processing {target_time.strftime('%Y-%m-%d %H:%M')} (idx={time_idx})...")
 
             try:
-                batch = load_batch_for_timestep(  # TODO: check mechanics of this
+                batch = load_batch_for_timestep(
                     target_time=target_time,
                     zarr_path=args.zarr_path,
                     static_path=str(static_path),

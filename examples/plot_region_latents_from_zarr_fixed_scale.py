@@ -217,7 +217,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--zarr-path",
         type=Path,
-        default=Path("/projects/prjs1858/latents_europe_2018_2020.zarr"),
+        default=Path("/projects/prjs1858/hres_europe_2018_2020.zarr"),
         help="Path to the latents Zarr store",
     )
     parser.add_argument(
@@ -317,6 +317,11 @@ def main() -> None:
     if args.list_timesteps:
         list_available_timesteps(args.zarr_path)
         return
+    
+    # Create output directory for plots
+    output_dir = Path("plots")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Plots will be saved to: {output_dir}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -446,31 +451,28 @@ if __name__ == "__main__":
 # Usage examples:
 #
 # List available timesteps:
-#   python examples/plot_region_latents_from_zarr_fixed_scale.py \
-#       --zarr-path examples/latents_europe_2018_2020.zarr \
-#       --list-timesteps
+#   python examples/plot_region_latents_from_zarr_fixed_scale.py --list-timesteps
 #
 # Plot first timestep with default fixed scale (-10 to 30°C):
 #   python examples/plot_region_latents_from_zarr_fixed_scale.py \
-#       --zarr-path examples/latents_europe_2018_2020.zarr \
 #       --time-idx 0 --var-name 2t
 #
 # Plot with custom color scale:
 #   python examples/plot_region_latents_from_zarr_fixed_scale.py \
-#       --zarr-path examples/latents_europe_2018_2020.zarr \
 #       --time-idx 0 --var-name 2t --vmin -20 --vmax 40
 #
 # Plot specific timestamp:
 #   python examples/plot_region_latents_from_zarr_fixed_scale.py \
-#       --zarr-path examples/latents_europe_2018_2020.zarr \
 #       --timestamp "2020-01-01T12:00" --var-name 2t
 #
 # Plot multiple samples:
 #   python examples/plot_region_latents_from_zarr_fixed_scale.py \
-#       --zarr-path examples/latents_europe_2018_2020.zarr \
 #       --time-idx 0 --n-samples 5
 #
-# Plot atmospheric variable with custom scale:
+# Plot atmospheric variable with custom scale (in Kelvin):
 #   python examples/plot_region_latents_from_zarr_fixed_scale.py \
-#       --zarr-path examples/latents_europe_2018_2020.zarr \
-#       --mode atmos --var-name t --time-idx 0 --vmin 250 --vmax 300
+#       --mode atmos --var-name t --time-idx 0 --level 850 --vmin 250 --vmax 300
+#
+# Use different zarr file:
+#   python examples/plot_region_latents_from_zarr_fixed_scale.py \
+#       --zarr-path /path/to/other.zarr --time-idx 0

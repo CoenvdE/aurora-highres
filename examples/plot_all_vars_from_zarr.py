@@ -299,7 +299,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--zarr-path",
         type=Path,
-        required=True,
+        default=Path("/projects/prjs1858/hres_europe_2018_2020.zarr"),
         help="Path to the latents Zarr store",
     )
     parser.add_argument(
@@ -311,7 +311,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("examples/diagnostic_plots"),
+        default=Path("plots"),
         help="Directory to save plots",
     )
     parser.add_argument(

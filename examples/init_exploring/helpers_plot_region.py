@@ -265,7 +265,7 @@ def _plot_world_and_region(
     ).set_label("Kelvin (K)")
     plt.tight_layout()
 
-    output_dir = "examples/latents"
+    output_dir = "plots"
     os.makedirs(output_dir, exist_ok=True)
     # Create unique filename with variable and timestamp
     time_str_file = np.datetime_as_string(time_np, unit='m').replace(':', '-').replace(' ', '_')
@@ -355,7 +355,7 @@ def _plot_region_only(
 
     plt.tight_layout()
 
-    output_dir = "examples/latents"
+    output_dir = "plots"
     os.makedirs(output_dir, exist_ok=True)
     # Create unique filename with variable and timestamp
     time_str_file = time_str.replace(':', '-').replace(' ', '_') if time_str != "NaT" else "unknown"
@@ -466,7 +466,7 @@ def _plot_region_with_location(
 
     plt.tight_layout()
 
-    output_dir = "examples/latents"
+    output_dir = "plots"
     os.makedirs(output_dir, exist_ok=True)
     # Create unique filename with variable and timestamp
     time_str_file = time_str.replace(':', '-').replace(' ', '_') if time_str != "NaT" else "unknown"
@@ -673,7 +673,7 @@ def _plot_patchiness_comparison(
     plt.suptitle(f"Patchiness Diagnostic: {component} {variable}", fontsize=14, fontweight='bold')
     plt.tight_layout()
 
-    output_dir = "examples/latents"
+    output_dir = "plots"
     os.makedirs(output_dir, exist_ok=True)
     # Create unique filename with variable and component
     filename = f"patchiness_comparison_{component}_{variable}.png"

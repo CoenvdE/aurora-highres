@@ -19,6 +19,7 @@ DATA_DIR="/projects/prjs1858"
 echo "DATA_DIR is set to: $DATA_DIR"
 
 cd $CODE_DIR
+export PYTHONPATH=".";
 python examples/convert_static_to_zarr.py \
     --output "$DATA_DIR/static_hres.zarr" \
     --overwrite

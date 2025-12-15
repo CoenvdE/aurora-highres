@@ -19,6 +19,7 @@ DATA_DIR="/projects/prjs1858"
 echo "DATA_DIR is set to: $DATA_DIR"
 
 cd $CODE_DIR
+export PYTHONPATH=".";
 python examples/download_hres_year.py \
     --start 2018-01-01 \
     --end 2018-12-31 \

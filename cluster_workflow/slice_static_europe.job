@@ -24,6 +24,7 @@ echo "CODE_DIR: $CODE_DIR"
 echo "DATA_DIR: $DATA_DIR"
 
 cd $CODE_DIR
+export PYTHONPATH=".";
 
 # Slice and interpolate static zarr to match HRES grid
 python examples/slice_static_to_region.py \

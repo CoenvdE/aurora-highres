@@ -49,6 +49,7 @@ examples/examples/downloads/
 examples/hres_vis
 examples/forward_pass_plots/
 hres_vis/
+plots/
 
 __pycache__/
 

@@ -22,6 +22,7 @@ echo "CODE_DIR: $CODE_DIR"
 echo "DATA_DIR: $DATA_DIR"
 
 cd $CODE_DIR
+export PYTHONPATH=".";
 
 # Calculate statistics for HRES Europe 2018 dataset
 echo ""

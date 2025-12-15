@@ -30,6 +30,7 @@ echo "TEST_DATA_DIR: $TEST_DATA_DIR"
 echo "PLOT_DIR: $PLOT_DIR"
 
 cd $CODE_DIR
+export PYTHONPATH=".";
 
 # Clean up previous plots only (keep data if exists)
 echo ""
