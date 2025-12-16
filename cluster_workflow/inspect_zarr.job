@@ -1,0 +1,32 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
+#SBATCH --job-name=InspectZarr
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:10:00
+#SBATCH --output=cluster_workflow/jobs/slurm_outputs/inspect_zarr_%A.out
+#SBATCH --error=cluster_workflow/jobs/slurm_outputs/inspect_zarr_%A.err
+
+# Inspect Zarr datasets - print variables, coordinates, shapes, chunks
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+source activate neural-field-superres
+CODE_DIR="$HOME/aurora-highres"
+DATA_DIR="/projects/prjs1858"
+
+cd $CODE_DIR
+export PYTHONPATH="."
+
+echo "=== INSPECTING ZARR DATASETS ==="
+echo ""
+
+# Inspect v3 datasets
+python examples/inspect_zarr.py --data-dir "$DATA_DIR" --zarr-format 3
+
+# To inspect v2 datasets instead:
+# python examples/inspect_zarr.py --data-dir "$DATA_DIR" --zarr-format 2
