@@ -5,7 +5,7 @@
 #SBATCH --job-name=CreateSquashFS
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=01:00:00
+#SBATCH --time=05:00:00
 #SBATCH --output=cluster_workflow/jobs/slurm_outputs/create_squashfs_%A.out
 #SBATCH --error=cluster_workflow/jobs/slurm_outputs/create_squashfs_%A.err
 
@@ -29,10 +29,10 @@ echo ""
 # Create mount directory if it doesn't exist
 mkdir -p "$MOUNT_DIR"
 
-# 1. HRES
-echo "Creating HRES SquashFS..."
-mksquashfs "$DATA_DIR/hres_europe_2018_2020.zarr" \
-    "$DATA_DIR/hres_europe_2018_2020.sqsh"
+# # 1. HRES
+# echo "Creating HRES SquashFS..."
+# mksquashfs "$DATA_DIR/hres_europe_2018_2020.zarr" \
+#     "$DATA_DIR/hres_europe_2018_2020.sqsh"
 
 # 2. Latents
 echo ""
