@@ -36,21 +36,24 @@ echo ""
 echo "=== Converting HRES dataset to v3 ==="
 python examples/convert_zarr_v3_xarray.py \
     --input "$DATA_DIR/hres_europe_2018_2020.zarr" \
-    --output "$DATA_DIR/hres_europe_2018_2020_v3.zarr"
+    --output "$DATA_DIR/hres_europe_2018_2020_v3.zarr" \
+    --overwrite
 
 # 2. Convert latents dataset
 echo ""
 echo "=== Converting Latents dataset to v3 ==="
 python examples/convert_zarr_v3_xarray.py \
     --input "$DATA_DIR/latents_europe_2018_2020.zarr" \
-    --output "$DATA_DIR/latents_europe_2018_2020_v3.zarr"
+    --output "$DATA_DIR/latents_europe_2018_2020_v3.zarr" \
+    --overwrite
 
 # 3. Convert static dataset
 echo ""
 echo "=== Converting Static dataset to v3 ==="
 python examples/convert_zarr_v3_xarray.py \
     --input "$DATA_DIR/static_hres_europe.zarr" \
-    --output "$DATA_DIR/static_hres_europe_v3.zarr"
+    --output "$DATA_DIR/static_hres_europe_v3.zarr" \
+    --overwrite
 
 echo ""
 echo "=== COMPLETE ==="
