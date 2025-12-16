@@ -19,8 +19,8 @@ def main():
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
     
-    input_path = Path(args.data_dir) / "static_hres_europe_v3.zarr"
-    output_path = Path(args.data_dir) / "static_hres_europe_v3_rechunked.zarr"
+    input_path = Path(args.data_dir) / "static_hres_europe.zarr"
+    output_path = Path(args.data_dir) / "static_hres_europe_rechunked.zarr"
     
     if output_path.exists():
         if args.overwrite:
@@ -82,3 +82,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# usage:
+# python examples/rechunk_static.py --data-dir /projects/prjs1858

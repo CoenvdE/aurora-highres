@@ -87,6 +87,7 @@ def main():
             f"{args.data_dir}/hres_europe_2018_2020_v3.zarr",
             f"{args.data_dir}/latents_europe_2018_2020_v3.zarr",
             f"{args.data_dir}/static_hres_europe_v3.zarr",
+            f"{args.data_dir}/static_hres_europe_v3_rechunked.zarr",
         ]
     else:
         default_datasets = [
