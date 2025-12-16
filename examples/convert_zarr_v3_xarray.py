@@ -54,6 +54,8 @@ def main() -> None:
     
     # Check zarr version
     import zarr
+    from zarr.codecs import BloscCodec
+    
     print(f"Using zarr {zarr.__version__}")
     print(f"Using xarray {xr.__version__}")
     
@@ -83,10 +85,17 @@ def main() -> None:
     
     print(f"\nDataset info:")
     print(f"  Variables: {list(ds.data_vars)}")
-    print(f"  Dimensions: {dict(ds.dims)}")
+    print(f"  Dimensions: {dict(ds.sizes)}")
     if "time" in ds.dims:
         print(f"  Time range: {ds.time.values[0]} to {ds.time.values[-1]}")
         print(f"  Timesteps: {len(ds.time)}")
+    
+    # Build encoding to override the old numcodecs compressor with zarr v3 codec
+    # Use zarr.codecs.BloscCodec instead of numcodecs.blosc.Blosc
+    compressor = BloscCodec(cname="lz4", clevel=5)
+    encoding = {}
+    for var in list(ds.data_vars) + list(ds.coords):
+        encoding[var] = {"compressor": compressor}
     
     # Convert to v3 - xarray handles everything!
     print("\nWriting to Zarr v3...")
@@ -94,6 +103,7 @@ def main() -> None:
         str(args.output),
         zarr_format=3,
         mode="w",
+        encoding=encoding,
     )
     
     print(f"\n{'='*60}")
@@ -106,7 +116,7 @@ def main() -> None:
     ds_v3 = xr.open_zarr(str(args.output), zarr_format=3)
     print(f"  ✓ xarray can load the v3 dataset")
     print(f"  Variables: {list(ds_v3.data_vars)}")
-    print(f"  Dimensions: {dict(ds_v3.dims)}")
+    print(f"  Dimensions: {dict(ds_v3.sizes)}")
 
 
 if __name__ == "__main__":
