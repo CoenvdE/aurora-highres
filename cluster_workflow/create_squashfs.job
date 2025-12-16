@@ -1,0 +1,68 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
+#SBATCH --job-name=CreateSquashFS
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=01:00:00
+#SBATCH --output=cluster_workflow/jobs/slurm_outputs/create_squashfs_%A.out
+#SBATCH --error=cluster_workflow/jobs/slurm_outputs/create_squashfs_%A.err
+
+# Create SquashFS images from Zarr datasets for faster I/O
+#
+# SquashFS benefits:
+# - Single file instead of thousands of chunk files
+# - Compressed (typically 30-50% smaller)
+# - Much faster to read on HPC storage
+# - Read-only = safe from accidental modification
+#
+# NOTE: You MUST mount the .sqsh file before using in training
+
+DATA_DIR="/projects/prjs1858"
+MOUNT_DIR="/projects/prjs1858/sqsh_mounts"
+
+echo "=== CREATING SQUASHFS IMAGES ==="
+echo "DATA_DIR: $DATA_DIR"
+echo ""
+
+# Create mount directory if it doesn't exist
+mkdir -p "$MOUNT_DIR"
+
+# 1. HRES v3
+echo "Creating HRES SquashFS..."
+mksquashfs "$DATA_DIR/hres_europe_2018_2020_v3.zarr" \
+    "$DATA_DIR/hres_europe_2018_2020_v3.sqsh"
+
+# 2. Latents v3
+echo ""
+echo "Creating Latents SquashFS..."
+mksquashfs "$DATA_DIR/latents_europe_2018_2020_v3.zarr" \
+    "$DATA_DIR/latents_europe_2018_2020_v3.sqsh"
+
+# 3. Static v3
+echo ""
+echo "Creating Static SquashFS..."
+mksquashfs "$DATA_DIR/static_hres_europe_v3.zarr" \
+    "$DATA_DIR/static_hres_europe_v3.sqsh"
+
+echo ""
+echo "=== SQUASHFS IMAGES CREATED ==="
+ls -lh "$DATA_DIR"/*.sqsh
+
+echo ""
+echo "=== HOW TO USE ==="
+echo "1. Mount before training:"
+echo "   squashfuse $DATA_DIR/hres_europe_2018_2020_v3.sqsh $MOUNT_DIR/hres"
+echo "   squashfuse $DATA_DIR/latents_europe_2018_2020_v3.sqsh $MOUNT_DIR/latents"
+echo "   squashfuse $DATA_DIR/static_hres_europe_v3.sqsh $MOUNT_DIR/static"
+echo ""
+echo "2. Update config to use mount paths:"
+echo "   hres_zarr_path: $MOUNT_DIR/hres"
+echo "   latent_zarr_path: $MOUNT_DIR/latents"
+echo "   static_zarr_path: $MOUNT_DIR/static"
+echo ""
+echo "3. Unmount after training:"
+echo "   fusermount -u $MOUNT_DIR/hres"
+echo "   fusermount -u $MOUNT_DIR/latents"
+echo "   fusermount -u $MOUNT_DIR/static"

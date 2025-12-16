@@ -92,31 +92,21 @@ def check_zarr_version():
     print(f"Using zarr {zarr.__version__}")
 
 
-def get_codec_pipeline(compressor: str):
-    """Get zarr v3 codec pipeline."""
-    from zarr.codecs import BytesCodec, BloscCodec, ZstdCodec, GzipCodec
+def get_compressor(compressor: str):
+    """Get zarr v3 compressor.
     
-    codecs = [BytesCodec()]
+    In zarr 3.x, compressors are specified directly, not as codec pipelines.
+    """
+    from zarr.codecs import BloscCodec, ZstdCodec, GzipCodec
     
     if compressor == "blosc":
-        codecs.append(BloscCodec(cname="lz4", clevel=5, shuffle="bitshuffle"))
+        return BloscCodec(cname="lz4", clevel=5, shuffle="bitshuffle")
     elif compressor == "zstd":
-        codecs.append(ZstdCodec(level=3))
+        return ZstdCodec(level=3)
     elif compressor == "gzip":
-        codecs.append(GzipCodec(level=5))
-    # "none" = no compression codec added
-    
-    return codecs
-
-
-def get_sharding_codec(inner_chunks: tuple, codecs: list):
-    """Create sharding codec that wraps inner chunks."""
-    from zarr.codecs import ShardingCodec
-    
-    return ShardingCodec(
-        chunk_shape=inner_chunks,
-        codecs=codecs,
-    )
+        return GzipCodec(level=5)
+    else:
+        return None  # No compression
 
 
 def main() -> None:
@@ -184,8 +174,8 @@ def main() -> None:
     store.attrs["shard_time"] = args.shard_time
     store.attrs["chunk_time"] = args.chunk_time
     
-    # Get compressor codecs
-    inner_codecs = get_codec_pipeline(args.compressor)
+    # Get compressor
+    compressor = get_compressor(args.compressor)
     
     # Process each variable
     for var_name in ds.data_vars:
@@ -224,16 +214,17 @@ def main() -> None:
         print(f"  Inner chunk size: {inner_size_mb:.2f} MB")
         print(f"  Shard size: {shard_size_mb:.2f} MB")
         
-        # Create sharding codec
-        sharding_codec = get_sharding_codec(inner_chunks, inner_codecs)
-        
-        # Create array with sharding
+        # Create array with sharding using zarr 3.x API
+        # - shards: outer chunk shape (shard boundaries)
+        # - chunks: inner chunk shape (within each shard)
+        # - compressors: compression codec
         arr = store.create_array(
             var_name,
             shape=da.shape,
-            chunks=shard_shape,  # Shard shape = outer chunks
+            shards=shard_shape,
+            chunks=inner_chunks,
             dtype=np.float32,
-            codecs=[sharding_codec],
+            compressors=compressor,
             fill_value=np.nan,
         )
         
@@ -285,7 +276,7 @@ def main() -> None:
             shape=data.shape,
             chunks=data.shape,  # Single chunk for coordinates
             dtype=dtype,
-            codecs=inner_codecs,
+            compressors=compressor,
         )
         arr[:] = data.astype(dtype)
         arr.attrs["_ARRAY_DIMENSIONS"] = [coord_name] if len(data.shape) == 1 else list(coord.dims)
