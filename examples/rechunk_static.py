@@ -32,8 +32,10 @@ def main():
             return
     
     print(f"Opening: {input_path}")
-    # Open v2 zarr (no zarr_format needed for v2)
-    ds = xr.open_zarr(str(input_path), consolidated=True)
+    try:
+        ds = xr.open_zarr(str(input_path), zarr_format=3)
+    except:
+        ds = xr.open_zarr(str(input_path), zarr_format=2)
     
     print(f"\nOriginal chunks:")
     for var in ds.data_vars:
