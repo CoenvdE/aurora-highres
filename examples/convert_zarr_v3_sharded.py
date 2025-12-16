@@ -262,6 +262,11 @@ def main() -> None:
         coord = ds[coord_name]
         data = coord.values
         
+        # Skip scalar coordinates (0-dimensional) - zarr 3.x handles these differently
+        if data.shape == () or len(data.shape) == 0:
+            print(f"    (skipping scalar coordinate)")
+            continue
+        
         # Determine dtype
         if coord_name == "time":
             dtype = "datetime64[ns]"
