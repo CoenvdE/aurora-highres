@@ -94,8 +94,32 @@ def main() -> None:
     # Use zarr.codecs.BloscCodec instead of numcodecs.blosc.Blosc
     compressor = BloscCodec(cname="lz4", clevel=5)
     encoding = {}
+    
+    # Handle time coordinate specially - ensure proper datetime encoding
+    # This prevents NaT values when converting object dtype times
+    if "time" in ds.coords:
+        time_var = ds.coords["time"]
+        print(f"\n  Time coordinate dtype: {time_var.dtype}")
+        
+        # If time is object dtype, convert to datetime64
+        if time_var.dtype == object:
+            print("  Converting time from object to datetime64[ns]...")
+            import pandas as pd
+            time_values = pd.to_datetime(time_var.values)
+            ds = ds.assign_coords(time=time_values)
+            print(f"  New time dtype: {ds.coords['time'].dtype}")
+        
+        # Set explicit encoding for time coordinate
+        encoding["time"] = {
+            "compressor": compressor,
+            "dtype": "int64",
+            "units": "nanoseconds since 1970-01-01",
+            "calendar": "proleptic_gregorian",
+        }
+    
     for var in list(ds.data_vars) + list(ds.coords):
-        encoding[var] = {"compressor": compressor}
+        if var not in encoding:
+            encoding[var] = {"compressor": compressor}
     
     # Convert to v3 - xarray handles everything!
     print("\nWriting to Zarr v3...")
@@ -117,6 +141,19 @@ def main() -> None:
     print(f"  ✓ xarray can load the v3 dataset")
     print(f"  Variables: {list(ds_v3.data_vars)}")
     print(f"  Dimensions: {dict(ds_v3.sizes)}")
+    
+    # Verify time coordinate if present
+    if "time" in ds_v3.coords:
+        import numpy as np
+        import pandas as pd
+        time_values = ds_v3.time.values
+        nat_count = np.sum(pd.isna(time_values))
+        if nat_count > 0:
+            print(f"  ⚠ WARNING: {nat_count} NaT values found in time coordinate!")
+            print(f"    First few time values: {time_values[:5]}")
+        else:
+            print(f"  ✓ Time coordinate valid: {len(time_values)} timestamps, no NaT values")
+            print(f"    Range: {time_values[0]} to {time_values[-1]}")
 
 
 if __name__ == "__main__":

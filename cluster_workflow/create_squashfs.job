@@ -29,22 +29,22 @@ echo ""
 # Create mount directory if it doesn't exist
 mkdir -p "$MOUNT_DIR"
 
-# 1. HRES v3
+# 1. HRES
 echo "Creating HRES SquashFS..."
-mksquashfs "$DATA_DIR/hres_europe_2018_2020_v3.zarr" \
-    "$DATA_DIR/hres_europe_2018_2020_v3.sqsh"
+mksquashfs "$DATA_DIR/hres_europe_2018_2020.zarr" \
+    "$DATA_DIR/hres_europe_2018_2020.sqsh"
 
-# 2. Latents v3
+# 2. Latents
 echo ""
 echo "Creating Latents SquashFS..."
-mksquashfs "$DATA_DIR/latents_europe_2018_2020_v3.zarr" \
-    "$DATA_DIR/latents_europe_2018_2020_v3.sqsh"
+mksquashfs "$DATA_DIR/latents_europe_2018_2020.zarr" \
+    "$DATA_DIR/latents_europe_2018_2020.sqsh"
 
-# 3. Static v3
+# 3. Static
 echo ""
 echo "Creating Static SquashFS..."
-mksquashfs "$DATA_DIR/static_hres_europe_v3.zarr" \
-    "$DATA_DIR/static_hres_europe_v3.sqsh"
+mksquashfs "$DATA_DIR/static_hres_europe.zarr" \
+    "$DATA_DIR/static_hres_europe.sqsh"
 
 echo ""
 echo "=== SQUASHFS IMAGES CREATED ==="
@@ -53,9 +53,9 @@ ls -lh "$DATA_DIR"/*.sqsh
 echo ""
 echo "=== HOW TO USE ==="
 echo "1. Mount before training:"
-echo "   squashfuse $DATA_DIR/hres_europe_2018_2020_v3.sqsh $MOUNT_DIR/hres"
-echo "   squashfuse $DATA_DIR/latents_europe_2018_2020_v3.sqsh $MOUNT_DIR/latents"
-echo "   squashfuse $DATA_DIR/static_hres_europe_v3.sqsh $MOUNT_DIR/static"
+echo "   squashfuse $DATA_DIR/hres_europe_2018_2020.sqsh $MOUNT_DIR/hres"
+echo "   squashfuse $DATA_DIR/latents_europe_2018_2020.sqsh $MOUNT_DIR/latents"
+echo "   squashfuse $DATA_DIR/static_hres_europe.sqsh $MOUNT_DIR/static"
 echo ""
 echo "2. Update config to use mount paths:"
 echo "   hres_zarr_path: $MOUNT_DIR/hres"
