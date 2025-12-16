@@ -38,6 +38,11 @@ def main():
     for var in ds.data_vars:
         print(f"  {var}: {ds[var].encoding.get('chunks')}")
     
+    # Load into memory (only 7 MB, so this is fine)
+    # This avoids Dask chunk alignment issues when rechunking
+    print("\nLoading into memory (small dataset)...")
+    ds = ds.load()
+    
     # Get full spatial dimensions
     lat_size = ds.sizes["latitude"]
     lon_size = ds.sizes["longitude"]
