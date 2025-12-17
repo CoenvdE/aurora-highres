@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --job-name=RunPredictions2018_2020
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=48:00:00
+#SBATCH --output=cluster_workflow/jobs/slurm_outputs/run_predictions_2018_2020_%A.out
+#SBATCH --error=cluster_workflow/jobs/slurm_outputs/run_predictions_2018_2020_%A.err
+
+module purge
+module load 2023
+module load CUDA/12.4.0
+module load Anaconda3/2023.07-2
+
+source activate aurora-highres
+CODE_DIR="$HOME/aurora-highres"
+DATA_DIR="/projects/prjs1858"
+echo "DATA_DIR is set to: $DATA_DIR"
+
+cd $CODE_DIR
+export PYTHONPATH="."
+python examples/run_year_forward_with_predictions_zarr.py \
+    --start-year 2018 \
+    --end-year 2020 \
+    --output-zarr "$DATA_DIR/predictions_europe_2018_2020.zarr" \
+    --work-dir "$DATA_DIR/run_year_forward_predictions_zarr" \
+    --skip-existing
