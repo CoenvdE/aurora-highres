@@ -1,0 +1,101 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
+#SBATCH --job-name=ProcessPredictions
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=06:00:00
+#SBATCH --output=cluster_workflow/jobs/slurm_outputs/process_predictions_%A.out
+#SBATCH --error=cluster_workflow/jobs/slurm_outputs/process_predictions_%A.err
+
+# Combined job to process the predictions dataset:
+# 1. Calculate statistics
+# 2. Convert to Zarr v3
+# 3. Create SquashFS
+#
+# Run AFTER run_predictions_2018_2020.job completes
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+source activate neural-field-superres
+CODE_DIR="$HOME/aurora-highres"
+DATA_DIR="/projects/prjs1858"
+MOUNT_DIR="/projects/prjs1858/sqsh_mounts"
+
+echo "=== PROCESSING PREDICTIONS DATASET ==="
+echo "CODE_DIR: $CODE_DIR"
+echo "DATA_DIR: $DATA_DIR"
+echo ""
+
+cd $CODE_DIR
+export PYTHONPATH="."
+
+# Check input exists
+if [ ! -d "$DATA_DIR/predictions_europe_2018_2020.zarr" ]; then
+    echo "ERROR: Input dataset not found: $DATA_DIR/predictions_europe_2018_2020.zarr"
+    echo "Please run run_predictions_2018_2020.job first!"
+    exit 1
+fi
+
+# =============================================================================
+# STEP 1: Calculate Statistics
+# =============================================================================
+echo ""
+echo "=== STEP 1: CALCULATING STATISTICS ==="
+python examples/calculate_dataset_statistics.py \
+    --zarr-path "$DATA_DIR/predictions_europe_2018_2020.zarr" \
+    --chunk-size 100
+
+echo "Statistics saved to: $DATA_DIR/predictions_europe_2018_2020_statistics.json"
+
+# =============================================================================
+# STEP 2: Convert to Zarr v3
+# =============================================================================
+echo ""
+echo "=== STEP 2: CONVERTING TO ZARR V3 ==="
+python -c "import zarr; import xarray; print(f'zarr: {zarr.__version__}, xarray: {xarray.__version__}')"
+
+python examples/convert_zarr_v3_xarray.py \
+    --input "$DATA_DIR/predictions_europe_2018_2020.zarr" \
+    --output "$DATA_DIR/predictions_europe_2018_2020_v3.zarr" \
+    --overwrite
+
+echo "Zarr v3 saved to: $DATA_DIR/predictions_europe_2018_2020_v3.zarr"
+
+# =============================================================================
+# STEP 3: Create SquashFS
+# =============================================================================
+echo ""
+echo "=== STEP 3: CREATING SQUASHFS ==="
+mkdir -p "$MOUNT_DIR"
+
+mksquashfs "$DATA_DIR/predictions_europe_2018_2020.zarr" \
+    "$DATA_DIR/predictions_europe_2018_2020.sqsh"
+
+echo "SquashFS saved to: $DATA_DIR/predictions_europe_2018_2020.sqsh"
+
+# =============================================================================
+# SUMMARY
+# =============================================================================
+echo ""
+echo "=== PROCESSING COMPLETE ==="
+echo ""
+echo "Output files:"
+echo "  - Statistics: $DATA_DIR/predictions_europe_2018_2020_statistics.json"
+echo "  - Zarr v3:    $DATA_DIR/predictions_europe_2018_2020_v3.zarr"
+echo "  - SquashFS:   $DATA_DIR/predictions_europe_2018_2020.sqsh"
+echo ""
+ls -lh "$DATA_DIR"/predictions_europe_2018_2020*
+echo ""
+echo "=== HOW TO USE SQUASHFS ==="
+echo "1. Mount before training:"
+echo "   squashfuse $DATA_DIR/predictions_europe_2018_2020.sqsh $MOUNT_DIR/predictions"
+echo ""
+echo "2. Update config to use mount path:"
+echo "   predictions_zarr_path: $MOUNT_DIR/predictions"
+echo ""
+echo "3. Unmount after training:"
+echo "   fusermount -u $MOUNT_DIR/predictions"
